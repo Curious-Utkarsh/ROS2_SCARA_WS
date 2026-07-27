@@ -12,11 +12,15 @@ from sensor_msgs.msg import Image
 from std_msgs.msg import String
 
 
-# HSV ranges for red, green and blue. Red needs two ranges in HSV.
+# HSV ranges for red, green, blue and yellow. Red needs two ranges in HSV.
+# Blue is intentionally dark + capped in value: the box is now a deep navy, so
+# this pure-blue, low-value band matches the box but NOT the robot's brighter
+# blue links (scara_mid_blue), which used to get picked up by mistake.
 COLOURS = {
     "r": [((0, 100, 70), (10, 255, 255)), ((170, 100, 70), (180, 255, 255))],
     "g": [((40, 70, 50), (85, 255, 255))],
-    "b": [((100, 100, 50), (130, 255, 255))],
+    "b": [((105, 120, 30), (130, 255, 160))],
+    "y": [((20, 120, 120), (35, 255, 255))],
 }
 
 # Transient-local + depth 1: latches the colour command so vision_pick_and_place
@@ -53,7 +57,7 @@ class FixedCameraColorDetector(Node):
         self.create_subscription(Image, "/camera_fixed/depth_image", self.depth_callback, 10)
         self.create_subscription(String, "/scara/pick_command", self.command_callback, PICK_COMMAND_QOS)
         cv2.namedWindow("Fixed Camera Box Detector", cv2.WINDOW_NORMAL)
-        cv2.resizeWindow("Fixed Camera Box Detector", 1280, 960)
+        cv2.resizeWindow("Fixed Camera Box Detector", 640, 480)
         self.get_logger().info(f"Looking for {self.pick} box")
         self.command_publisher.publish(String(data=self.pick.upper()))
 

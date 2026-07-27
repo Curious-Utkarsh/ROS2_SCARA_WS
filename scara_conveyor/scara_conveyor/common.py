@@ -98,5 +98,11 @@ def pickup_grasp_point_base():
 
 
 # Colours the cell handles. Keys match the detector / pick_command letters.
-COLORS = ("R", "G", "B")
-COLOR_MODEL = {"R": "Red_Box", "G": "Green_Box", "B": "Blue_Box"}
+# Add a colour here + its model + drop target + HSV range to extend the cell.
+COLORS = ("R", "G", "B", "Y")
+COLOR_MODEL = {
+    "R": "Red_Box",
+    "G": "Green_Box",
+    "B": "Blue_Box",
+    "Y": "Yellow_Box",
+}

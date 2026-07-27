@@ -2,12 +2,17 @@
 
 Event-driven **conveyor pick-and-place** mini-project for the SCARA cell.
 
-Boxes of random colour are spawned onto a conveyor that runs **along Y,
-perpendicular** to the arm's reach and sits fully on the table. Each box advances
-to the pickup point at the table centre and stops. You run the pick node
-separately and tell it **one colour to keep**; that colour is picked and dropped
-in its bin, while **every other colour rides past and drops off the far edge of
-the table** — a colour-sorting line. One box at a time, in order, event-driven.
+Boxes of random colour (**Red, Green, Blue, Yellow**) are spawned onto a conveyor
+that runs **along Y, perpendicular** to the arm's reach and sits fully on the
+table. Each box advances to the pickup point at the table centre and stops. You
+run the pick node separately and tell it **one colour to keep**; that colour is
+picked and dropped in its bin, while **every other colour rides past and drops
+off the far edge of the table** — a colour-sorting line. One box at a time, in
+order, event-driven.
+
+Adding a colour is a data change only: one entry each in `COLORS`/`COLOR_MODEL`
+(common.py), `DROP_TARGETS` (executor), and the detector's `COLOURS` HSV table,
+plus a box model in `scara_description/models/`.
 
 This package **adds** to the existing project; it does not modify any existing
 node. It reuses the robot, controllers, MoveIt config, the fixed-camera colour

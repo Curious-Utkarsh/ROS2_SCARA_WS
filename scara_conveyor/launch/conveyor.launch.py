@@ -63,6 +63,13 @@ def generate_launch_description():
         name="fixed_camera_color_detector",
         output="screen",
     )
+    # View-only feed from the robot's arm-mounted camera (no role in the logic).
+    arm_camera = Node(
+        package="scara_conveyor",
+        executable="arm_camera_viewer",
+        name="arm_camera_viewer",
+        output="screen",
+    )
     spawner = Node(
         package="scara_conveyor",
         executable="object_spawner",
@@ -89,7 +96,7 @@ def generate_launch_description():
     # other colour rides off the far edge of the table.
     delayed_nodes = TimerAction(
         period=8.0,
-        actions=[detector, spawner, conveyor, state_machine],
+        actions=[detector, arm_camera, spawner, conveyor, state_machine],
     )
 
     return LaunchDescription(

@@ -16,6 +16,7 @@ import math
 import numpy as np
 import rclpy
 from cv_bridge import CvBridge
+from rcl_interfaces.msg import ParameterDescriptor
 from geometry_msgs.msg import PointStamped
 from rclpy.callback_groups import ReentrantCallbackGroup
 from rclpy.node import Node
@@ -40,6 +41,26 @@ GRASP_JOINT_INDEX = scara.joint_names().index("shoulder_joint")
 
 # Per-colour drop bins (joint targets), matching pick_and_drop.py / the vision
 # demo. Joint order: column, shoulder, forearm, wrist.
+#
+# Red and Green are the two calibrated positions. Yellow and Blue are their
+# mirror images across the robot centre: reflecting a pose flips the sign of
+# every ROTATIONAL joint (column, forearm, wrist) but leaves the vertical
+# shoulder alone. They are derived below so the mirror relationship is exact
+# and stays correct if Red/Green are ever retuned -- reusing the existing
+# coordinates, just sign-flipped, no new arbitrary numbers.
+
+
+def _mirror_pose(joints):
+    """Reflect one joint target across the robot centre (negate rotations)."""
+    column, shoulder, forearm, wrist = joints
+    # `or 0.0` keeps a plain 0.0 instead of -0.0 when the value is zero.
+    return [-column or 0.0, shoulder, -forearm or 0.0, -wrist or 0.0]
+
+
+def _mirror_target(target):
+    return {phase: _mirror_pose(joints) for phase, joints in target.items()}
+
+
 DROP_TARGETS = {
     "R": {
         "drop_approach": [-1.611, 0.0, -2.00, 0.0],
@@ -51,12 +72,9 @@ DROP_TARGETS = {
         "drop_release": [-1.611, 0.0, 0.0, 0.0],
         "drop_home": [0.0, 0.0, 0.0, 0.0],
     },
-    "B": {
-        "drop_approach": [1.611, 0.0, -2.00, 0.184],
-        "drop_release": [1.611, 0.0, 0.0, 0.0],
-        "drop_home": [0.0, 0.0, 0.0, 0.0],
-    },
 }
+DROP_TARGETS["Y"] = _mirror_target(DROP_TARGETS["R"])  # Yellow = mirror of Red
+DROP_TARGETS["B"] = _mirror_target(DROP_TARGETS["G"])  # Blue   = mirror of Green
 
 LATCHED = QoSProfile(
     reliability=ReliabilityPolicy.RELIABLE,
@@ -75,7 +93,12 @@ class ConveyorPickExecutor(Node):
         pickup_base_x, pickup_base_y = common.pickup_in_base()
         self.fixed_grasp = common.pickup_grasp_point_base()
 
-        self.declare_parameter("target_color", "R")
+        # Dynamic typing: ROS 2 arg parsing reads a bare `Y` (also y/yes/no/on/
+        # off/true...) as a YAML boolean, so `-p target_color:=Y` arrives as
+        # True. Allow it, then coerce back to the colour letter below.
+        self.declare_parameter(
+            "target_color", "R", ParameterDescriptor(dynamic_typing=True)
+        )
         self.declare_parameter("grasp_z_source", "fixed")
         # Boxes always stop at the same spot, and the arm occludes the camera
         # there. So by default pick blindly at the known pickup point; set
@@ -87,9 +110,13 @@ class ConveyorPickExecutor(Node):
         self.declare_parameter("detection_timeout_s", 4.0)
         self.use_vision = bool(self.get_parameter("use_vision").value)
 
-        self.target_color = str(self.get_parameter("target_color").value).strip().upper()
+        raw_color = self.get_parameter("target_color").value
+        # `Y`/`y`/`yes` came in as boolean True (see above) -> map back to Y.
+        if isinstance(raw_color, bool):
+            raw_color = "Y" if raw_color else ""
+        self.target_color = str(raw_color).strip().upper()
         if self.target_color not in DROP_TARGETS:
-            raise ValueError("target_color must be R, G, or B")
+            raise ValueError(f"target_color must be one of {sorted(DROP_TARGETS)}")
         self.grasp_z_source = str(self.get_parameter("grasp_z_source").value).lower()
         if self.grasp_z_source not in ("fixed", "camera"):
             raise ValueError("grasp_z_source must be 'fixed' or 'camera'")

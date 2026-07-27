@@ -50,6 +50,15 @@ open/close, and blocking `wait_until_executed` sequencing.
   makes multi-box queues safe with a single shared camera.
 - Latched QoS removes node start-order races on command/handshake topics.
 
+## Four-colour update (Red / Green / Blue / Yellow)
+- Darkened the Blue box to a deep navy so the RGB camera stops confusing it with
+  the robot's blue links (they were nearly the same colour); tightened the blue
+  HSV band to a low-value, pure-blue range to match.
+- Added a Yellow box model (reusing the existing box geometry/collision/inertia)
+  and a Yellow drop bin defined as the mirror of Red (opposite side, same reach).
+- Spawner, drop map, and detector all key off dictionaries, so the colour set
+  extends with one entry per table -- no logic changes.
+
 ## Future improvements
 - Continuous tracking (servo to a moving box) instead of stop-to-pick.
 - Bin-fullness feedback and multi-arm balancing.
