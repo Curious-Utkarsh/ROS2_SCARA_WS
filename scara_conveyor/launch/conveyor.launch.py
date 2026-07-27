@@ -75,12 +75,6 @@ def generate_launch_description():
         name="conveyor_controller",
         output="screen",
     )
-    executor = Node(
-        package="scara_conveyor",
-        executable="conveyor_pick_executor",
-        name="conveyor_pick_executor",
-        output="screen",
-    )
     state_machine = Node(
         package="scara_conveyor",
         executable="conveyor_state_machine",
@@ -88,9 +82,14 @@ def generate_launch_description():
         output="screen",
     )
 
+    # NOTE: the pick node (conveyor_pick_executor) is intentionally NOT launched
+    # here. Start it yourself with the colour you want to keep, e.g.:
+    #   ros2 run scara_conveyor conveyor_pick_executor --ros-args -p target_color:=R
+    # The belt stays idle until you do; then that colour is picked and every
+    # other colour rides off the far edge of the table.
     delayed_nodes = TimerAction(
         period=8.0,
-        actions=[detector, spawner, conveyor, executor, state_machine],
+        actions=[detector, spawner, conveyor, state_machine],
     )
 
     return LaunchDescription(

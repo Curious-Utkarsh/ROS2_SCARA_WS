@@ -3,20 +3,25 @@
 **Project title:** Event-Driven Conveyor Pick-and-Place for a Simulated SCARA Cell
 
 **Objective:** Extend the existing vision pick-and-place SCARA project into an
-industrial-style automation cell: randomly coloured boxes ride a conveyor to a
-pickup point, are detected by a fixed camera, and are sorted into per-colour
-bins by the arm — with the belt and robot coordinated by ROS events, not
-timers.
+industrial-style **colour-sorting** cell: randomly coloured boxes ride a
+conveyor (perpendicular to the arm, on the table) to a pickup point. The
+operator picks one colour to keep; that colour is picked into its bin and every
+other colour rides past and drops off the far edge — the belt and robot
+coordinated by ROS events, not timers.
 
 ## Features implemented
-- Kinematic conveyor in Gazebo (deterministic, pausable) carrying boxes forward.
-- Random R/G/B box spawning (1 Hz) from the project's existing box models.
+- Kinematic conveyor in Gazebo (deterministic, pausable) running along Y, fully
+  on the table, carrying boxes to a central pickup point.
+- Random R/G/B box spawning at a configurable cadence from existing box models.
 - Natural multi-box queueing behind the pickup point.
-- Automatic belt stop when a box reaches pickup; automatic resume after pick.
+- Operator-selected keep-colour via a separately launched pick node; belt stays
+  idle until a colour is chosen.
+- Per-box keep/pass decision: keep → freeze + pick + colour-bin drop; pass →
+  ride to the far edge and drop off the table.
 - Gated, single-shot perception-driven pick that rejects queued boxes.
-- Colour-sorted drop into per-colour bins.
-- A clean state machine with a completion handshake (`/scara/pick_completed`).
-- One-command launch of the whole cell; runs indefinitely.
+- A clean state machine with a completion handshake (`/scara/pick_completed`)
+  and a watchdog so a failed pick never wedges the line.
+- One-command launch of the cell; runs indefinitely.
 
 ## ROS 2 concepts used
 Publishers/subscribers, latched (transient-local) QoS for command/handshake

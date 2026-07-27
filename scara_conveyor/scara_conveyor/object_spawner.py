@@ -26,13 +26,13 @@ class ObjectSpawner(Node):
         super().__init__("object_spawner")
 
         self.declare_parameter("world_name", common.WORLD_NAME)
-        self.declare_parameter("spawn_x", common.SPAWN_X)
-        self.declare_parameter("belt_y", common.BELT_Y)
+        self.declare_parameter("belt_x", common.BELT_X)
+        self.declare_parameter("spawn_y", common.SPAWN_Y)
         self.declare_parameter("belt_z", common.BELT_Z)
 
         self.world = self.get_parameter("world_name").value
-        self.spawn_x = float(self.get_parameter("spawn_x").value)
-        self.belt_y = float(self.get_parameter("belt_y").value)
+        self.belt_x = float(self.get_parameter("belt_x").value)
+        self.spawn_y = float(self.get_parameter("spawn_y").value)
         self.belt_z = float(self.get_parameter("belt_z").value)
 
         models_dir = os.path.join(
@@ -67,8 +67,8 @@ class ObjectSpawner(Node):
         name = f"box_{color}_{self.count:04d}"
 
         pose = Pose()
-        pose.position.x = self.spawn_x
-        pose.position.y = self.belt_y
+        pose.position.x = self.belt_x
+        pose.position.y = self.spawn_y
         pose.position.z = self.belt_z
 
         req = SpawnEntity.Request()
@@ -92,7 +92,7 @@ class ObjectSpawner(Node):
         if not ok:
             self.get_logger().error(f"Gazebo refused to spawn {name}.")
             return
-        self.get_logger().info(f"Spawned {name} ({color}) at x={self.spawn_x:.2f}.")
+        self.get_logger().info(f"Spawned {name} ({color}) at y={self.spawn_y:.2f}.")
         # Announce as "name;color" so the controller starts tracking it.
         self.spawned_pub.publish(String(data=f"{name};{color}"))
 
