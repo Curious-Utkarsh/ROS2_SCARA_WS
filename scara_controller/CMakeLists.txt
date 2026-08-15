@@ -22,6 +22,7 @@ find_package(rclpy REQUIRED)
 find_package(sensor_msgs REQUIRED)
 find_package(trajectory_msgs REQUIRED)
 find_package(control_msgs REQUIRED)
+find_package(std_srvs REQUIRED)
 
 # Install launch files
 install(DIRECTORY
@@ -41,6 +42,7 @@ ament_python_install_package(${PROJECT_NAME})
 # Install Python executables
 install(PROGRAMS
   ${PROJECT_NAME}/slider_controller.py
+  ${PROJECT_NAME}/manual_teaching/serial_joint_publisher.py
   DESTINATION lib/${PROJECT_NAME}
 )
 

@@ -5,35 +5,71 @@
 default_velocity_scaling_factor: 0.1
 default_acceleration_scaling_factor: 0.1
 
+# ── SIMULATION vs REAL HARDWARE ──────────────────────────────────────────────
+# Gazebo will happily move a joint as fast as you ask.  The real arm is limited
+# by how many steps an Arduino Uno can emit, so three joints carry two values
+# and you uncomment the one you are running.  Exactly one must be active.
+#
+# The real values are derived, not guessed.  With a jumper on M1 only (1/4 step)
+# each motor turns in 800 microsteps, so:
+#
+#   joint     gearing        steps per unit   firmware cap   -> max joint speed
+#   column    20:1           2546 steps/rad   1000 steps/s      0.39 rad/s
+#   shoulder  8 mm lead    100000 steps/m     1200 steps/s      0.012 m/s
+#   forearm   17:1           2164 steps/rad    800 steps/s      0.37 rad/s
+#   wrist     1:1 (TBC)       127 steps/rad    500 steps/s      3.93 rad/s
+#
+# The firmware caps (MAX_SPEED[] in scara_moveit_control.ino) sum to 3500
+# steps/s, near the ~4000 steps/s an Uno can sustain across all four axes.
+# Exceeding a real value does not break anything -- the firmware still clamps
+# the motion -- but MoveIt then reports a move finished while the arm is still
+# travelling.  Change a gear ratio or a microstepping jumper and these must be
+# recomputed alongside the sketch.
+#
+# NOTE: default_velocity_scaling_factor above multiplies all of these, so at 0.1
+# the real values are 10x slower again.  Raise the Velocity Scaling slider in the
+# RViz MotionPlanning panel rather than inflating the limits here.
+# ─────────────────────────────────────────────────────────────────────────────
+
 # Specific joint properties can be changed with the keys [max_position, min_position, max_velocity, max_acceleration]
 # Joint limits can be turned off with [has_velocity_limits, has_acceleration_limits]
 joint_limits:
   column_joint:
     has_velocity_limits: true
-    max_velocity: 1.5
+    # max_velocity: 1.5      # simulation
+    max_velocity: 0.39       # real hardware  (20:1, 1000 steps/s cap)
     has_acceleration_limits: false
     max_acceleration: 0
   forearm_joint:
     has_velocity_limits: true
-    max_velocity: 1.5
+    # max_velocity: 1.5      # simulation
+    max_velocity: 0.37       # real hardware  (17:1, 800 steps/s cap)
     has_acceleration_limits: false
     max_acceleration: 0
   left_finger_joint:
+    # Servo, not a stepper: it moves at its own fixed rate and the firmware just
+    # waits GRIPPER_SETTLE_MS. This number only shapes MoveIt's timing.
     has_velocity_limits: true
     max_velocity: 0.5
     has_acceleration_limits: false
     max_acceleration: 0
   right_finger_joint:
+    # Mimic of left_finger_joint -- no motor of its own.
     has_velocity_limits: true
     max_velocity: 0.5
     has_acceleration_limits: false
     max_acceleration: 0
   shoulder_joint:
     has_velocity_limits: true
-    max_velocity: 0.5
+    # max_velocity: 0.5      # simulation
+    max_velocity: 0.012      # real hardware  (8 mm lead, 1200 steps/s cap)
     has_acceleration_limits: false
     max_acceleration: 0
   wrist_joint:
+    # No swap needed *if* the wrist really is 1:1 -- 500 steps/s then allows
+    # 3.9 rad/s, well above this. But the ratio is UNVERIFIED: if it turns out
+    # to be geared, recompute and add a real-hardware line like the others.
+    # e.g. at 10:1 the real limit would be 500 / 1273 = 0.39 rad/s.
     has_velocity_limits: true
     max_velocity: 1.5
     has_acceleration_limits: false

@@ -1,0 +1,14 @@
+<!-- Tells pluginlib (and therefore ros2_control) where to find the class named
+     by <plugin>scara_firmware/ScaraHardwareInterface</plugin> in the URDF.
+     "path" is the library built by CMakeLists.txt, without the lib/.so. -->
+<library path="scara_hardware_interface">
+  <class name="scara_firmware/ScaraHardwareInterface"
+         type="scara_firmware::ScaraHardwareInterface"
+         base_class_type="hardware_interface::SystemInterface">
+    <description>
+      Open-loop ros2_control hardware interface for the SCARA robot.
+      Streams joint position commands to an Arduino over serial; there is no
+      encoder feedback, so the reported state is the last command.
+    </description>
+  </class>
+</library>

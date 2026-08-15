@@ -3,6 +3,7 @@ from ament_index_python.packages import get_package_share_directory
 
 from launch import LaunchDescription
 from launch.actions import DeclareLaunchArgument
+from launch.conditions import IfCondition
 from launch.substitutions import Command, LaunchConfiguration
 
 from launch_ros.actions import Node
@@ -16,6 +17,14 @@ def generate_launch_description():
         name="model",
         default_value=os.path.join(scara_description_dir, "urdf", "scara.urdf.xacro"),
         description="Absolute path to robot urdf file"
+    )
+
+    # Off when something else owns /joint_states -- e.g. the manual teaching
+    # serial bridge.  Two publishers make RViz flicker between them.
+    use_gui_arg = DeclareLaunchArgument(
+        name="use_gui",
+        default_value="True",
+        description="Run joint_state_publisher_gui as the /joint_states source"
     )
 
     robot_description = ParameterValue(
@@ -39,7 +48,8 @@ def generate_launch_description():
 
     joint_state_publisher_gui_node = Node(
         package="joint_state_publisher_gui",
-        executable="joint_state_publisher_gui"
+        executable="joint_state_publisher_gui",
+        condition=IfCondition(LaunchConfiguration("use_gui"))
     )
 
     rviz_node = Node(
@@ -53,6 +63,7 @@ def generate_launch_description():
 
     return LaunchDescription([
         model_arg,
+        use_gui_arg,
         joint_state_publisher_gui_node,
         robot_state_publisher_node,
         rviz_node,

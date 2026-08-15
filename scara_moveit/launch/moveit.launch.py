@@ -13,6 +13,8 @@ def generate_launch_description():
     # Arguments
     is_sim = LaunchConfiguration("is_sim")
     is_ignition = LaunchConfiguration("is_ignition")
+    is_real = LaunchConfiguration("is_real")
+    serial_port = LaunchConfiguration("serial_port")
 
     is_sim_arg = DeclareLaunchArgument(
         "is_sim", default_value="true",
@@ -24,7 +26,21 @@ def generate_launch_description():
         description="Use Ignition Gazebo if true"
     )
 
+    is_real_arg = DeclareLaunchArgument(
+        "is_real", default_value="false",
+        description="True = the real arm is being driven through scara_firmware"
+    )
+
+    serial_port_arg = DeclareLaunchArgument(
+        "serial_port", default_value="/dev/ttyUSB0",
+        description="Serial port the Arduino enumerates on"
+    )
+
     # Build MoveIt config
+    #
+    # All four flags are forwarded so that move_group builds the SAME URDF as
+    # controller.launch.py.  move_group never loads a hardware plugin itself, but
+    # two different robot_description strings in one system is a confusing trap.
     moveit_config = (
         MoveItConfigsBuilder("scara", package_name="scara_moveit")
         .robot_description(
@@ -34,7 +50,10 @@ def generate_launch_description():
                 "scara.urdf.xacro"
             ),
             mappings={
-                "is_ignition": is_ignition
+                "is_sim": is_sim,
+                "is_ignition": is_ignition,
+                "is_real": is_real,
+                "serial_port": serial_port,
             }
         )
         .robot_description_semantic(file_path="config/scara.srdf")
@@ -80,6 +99,8 @@ def generate_launch_description():
     return LaunchDescription([
         is_sim_arg,
         is_ignition_arg,
+        is_real_arg,
+        serial_port_arg,
         move_group_node,
         rviz_node
     ])

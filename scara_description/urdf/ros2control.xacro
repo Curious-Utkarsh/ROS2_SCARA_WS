@@ -6,7 +6,20 @@
     <xacro:arg name="is_sim"      default="true"/>
     <xacro:arg name="is_ignition" default="false"/>
 
+    <!-- Real robot: an Arduino driving stepper drivers over USB serial.
+         Only looked at when is_sim is false. -->
+    <xacro:arg name="is_real"     default="false"/>
+    <xacro:arg name="serial_port" default="/dev/ttyUSB0"/>
+    <xacro:arg name="wait_for_done" default="false"/>
+
     <ros2_control name="RobotSystem" type="system">
+
+        <!-- ══ Which hardware actually moves? ═══════════════════════════════
+             is_sim=True                → Gazebo physics
+             is_sim=False, is_real=True → the real arm, via scara_firmware
+             is_sim=False, is_real=False→ mock_components (RViz only, no robot)
+             Everything below this block is identical in all three cases, which
+             is what lets one MoveIt/RViz setup drive all of them. -->
 
         <xacro:if value="$(arg is_sim)">
             <xacro:if value="$(arg is_ignition)">
@@ -23,11 +36,29 @@
             </xacro:unless>
         </xacro:if>
 
-        <!-- Standalone / slider GUI — no Gazebo -->
         <xacro:unless value="$(arg is_sim)">
-            <hardware>
-                <plugin>mock_components/GenericSystem</plugin>
-            </hardware>
+
+            <!-- REAL ROBOT — open loop, no encoders.  Position commands are
+                 serialised and streamed to the Arduino; the reported state is
+                 simply the last command. -->
+            <xacro:if value="$(arg is_real)">
+                <hardware>
+                    <plugin>scara_firmware/ScaraHardwareInterface</plugin>
+                    <param name="port">$(arg serial_port)</param>
+                    <!-- false = stream setpoints continuously (smooth motion)
+                         true  = wait for the Arduino's DONE after every setpoint,
+                                 which stops the motors at each one and jerks -->
+                    <param name="wait_for_done">$(arg wait_for_done)</param>
+                </hardware>
+            </xacro:if>
+
+            <!-- Standalone / slider GUI — no Gazebo, no hardware -->
+            <xacro:unless value="$(arg is_real)">
+                <hardware>
+                    <plugin>mock_components/GenericSystem</plugin>
+                </hardware>
+            </xacro:unless>
+
         </xacro:unless>
 
         <!-- Base Rotation -->

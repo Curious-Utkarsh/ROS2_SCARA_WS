@@ -11,6 +11,9 @@ from ament_index_python.packages import get_package_share_directory
 def generate_launch_description():
     is_sim = LaunchConfiguration("is_sim")
     is_ignition = LaunchConfiguration("is_ignition")
+    is_real = LaunchConfiguration("is_real")
+    serial_port = LaunchConfiguration("serial_port")
+    wait_for_done = LaunchConfiguration("wait_for_done")
 
     is_sim_arg = DeclareLaunchArgument(
         "is_sim",
@@ -19,6 +22,23 @@ def generate_launch_description():
     is_ignition_arg = DeclareLaunchArgument(
         "is_ignition",
         default_value="False"       # True only when launching inside Ignition Fortress
+    )
+    # Real robot: only consulted when is_sim is False.  Together the two flags
+    # pick the hardware plugin in scara_description/urdf/ros2control.xacro.
+    is_real_arg = DeclareLaunchArgument(
+        "is_real",
+        default_value="False",
+        description="True = drive the real arm through scara_firmware over serial"
+    )
+    serial_port_arg = DeclareLaunchArgument(
+        "serial_port",
+        default_value="/dev/ttyUSB0",
+        description="Serial port the Arduino enumerates on (often /dev/ttyACM0 for an Uno)"
+    )
+    wait_for_done_arg = DeclareLaunchArgument(
+        "wait_for_done",
+        default_value="False",
+        description="Wait for the Arduino's DONE after every setpoint (off = smoother)"
     )
 
     robot_description = ParameterValue(
@@ -32,6 +52,9 @@ def generate_launch_description():
                 ),
                 " is_sim:=", is_sim,
                 " is_ignition:=", is_ignition,
+                " is_real:=", is_real,
+                " serial_port:=", serial_port,
+                " wait_for_done:=", wait_for_done,
             ]
         ),
         value_type=str,
@@ -103,6 +126,9 @@ def generate_launch_description():
     return LaunchDescription([
         is_sim_arg,
         is_ignition_arg,
+        is_real_arg,
+        serial_port_arg,
+        wait_for_done_arg,
         robot_state_publisher_node,
         controller_manager,
         joint_state_broadcaster_spawner,
