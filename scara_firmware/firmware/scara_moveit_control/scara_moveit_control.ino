@@ -85,13 +85,21 @@ const float STEPS_PER_MOTOR_TURN = 800.0;
 const float ONE_TURN_IN_RADIANS = 6.283185;   // 2 x pi
 
 // --- Gearing ---
-// "20:1" means the motor turns 20 times to turn the joint once.
-const float COLUMN_GEARING  = 20.0;
-const float FOREARM_GEARING = 17.0;
+// "19:1" means the motor turns 19 times to turn the joint once.
+const float COLUMN_GEARING  = 19.0;   // 800 x 19 / 2pi = 2419 steps/rad
+const float FOREARM_GEARING = 16.0;   // 800 x 16 / 2pi = 2037 steps/rad
 const float WRIST_GEARING   = 1.0;    // <-- NOT MEASURED YET, please check!
 
 // The shoulder is a leadscrew instead of a gear. One turn of the motor lifts
-// the arm by 8 mm, which is 0.008 metres.
+// the arm by 8 mm, which is 0.008 metres.  ->  800 / 0.008 = 100000 steps/m
+//
+// Measured 2026-08-16: 4600 microsteps (= 5.75 motor turns) moved the nut 45 mm.
+// That implies 45 / 5.75 = 7.83 mm per turn, 2.2% short of 8 mm. Left at 8.0
+// because 7.83 is not a leadscrew lead anyone makes (a T8 screw is 2 mm pitch x
+// 4 starts = exactly 8 mm) and 1 mm over 45 mm is inside ruler + backlash error.
+// To settle it, drive 12000 steps (15 turns) one way only and measure: 120 mm
+// means 8 mm is right, 117.4 mm means the lead really is 7.83 and this should
+// become 0.00783 (-> 102222 steps/m, and shoulder max_velocity 0.0117 m/s).
 const float SHOULDER_MM_PER_TURN = 0.008;
 
 // --- Which way round is each motor? ---

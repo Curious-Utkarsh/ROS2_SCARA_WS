@@ -190,8 +190,8 @@ Everything mechanical lives in one block near the top of the sketch:
 
 ```cpp
 #define MICROSTEPS      4.0f     // jumper on M1 only -> 1/4 step
-#define COLUMN_GEAR    20.0f     // motor revs per joint rev
-#define FOREARM_GEAR   17.0f     // "roughly 17:1" -- verify
+#define COLUMN_GEAR    19.0f     // motor revs per joint rev
+#define FOREARM_GEAR   16.0f     // motor revs per joint rev
 #define WRIST_GEAR      1.0f     // UNVERIFIED placeholder
 #define SHOULDER_LEAD_M 0.008f   // leadscrew travel per motor rev
 ```
@@ -200,10 +200,32 @@ which produce:
 
 | Joint | Gearing | Steps per unit |
 |---|---|---|
-| column | 20:1 | 2546 steps/rad |
+| column | 19:1 | 2419 steps/rad |
 | shoulder | 8 mm lead | 100000 steps/m |
-| forearm | 17:1 | 2164 steps/rad |
+| forearm | 16:1 | 2037 steps/rad |
 | wrist | 1:1 **(TBC)** | 127 steps/rad |
+
+Each is `800 x gearing / 2pi`, or `800 / lead` for the leadscrew.
+
+### Shoulder lead: measured, but left at 8 mm
+
+Driving **4600 microsteps** = 4600/800 = **5.75 motor turns** moved the nut
+**45 mm**, which implies 45/5.75 = **7.83 mm per turn**, 2.2% short of the 8 mm
+the sketch assumes (it predicts 46 mm).
+
+The constant is deliberately *not* changed. 7.83 mm is not a lead that is
+manufactured — a T8 screw is 2 mm pitch x 4 starts = exactly 8 mm — and 1 mm out
+of 45 is inside ruler resolution plus backlash. To settle it, drive **12000
+steps** (15 turns) in one direction only, without reversing, and measure:
+
+| Measured | Verdict |
+|---|---|
+| ~120 mm | 8 mm lead is correct, leave everything alone |
+| ~117.4 mm | lead really is 7.83 mm — see below |
+
+If it turns out to be 7.83 mm, three numbers change together:
+`SHOULDER_MM_PER_TURN` 0.008 -> 0.00783, steps/m 100000 -> 102222, and
+`shoulder_joint: max_velocity` in `joint_limits.yaml` 0.012 -> 0.0117 m/s.
 
 > **The wrist ratio is a placeholder.** Until it is measured the wrist will move
 > by the wrong amount. Everything else is set from measured hardware.
@@ -274,14 +296,15 @@ shoulder to full step, for example, gives 25000 steps/m instead of 100000, so th
 same 1200 steps/s becomes 0.048 m/s instead of 0.012 — four times faster, at the
 cost of coarser resolution and more vibration.
 
-which produce, with the defaults:
+For comparison, the same robot at **full step** (no jumpers, 200 steps/rev)
+would give a quarter of the resolution everywhere:
 
-| Joint | Steps per unit |
-|---|---|
-| column | 637 steps/rad |
-| shoulder | 100000 steps/m |
-| forearm | 382 steps/rad |
-| wrist | 127 steps/rad |
+| Joint | 1/4 step (this robot) | full step |
+|---|---|---|
+| column | 2419 steps/rad | 605 steps/rad |
+| shoulder | 100000 steps/m | 25000 steps/m |
+| forearm | 2037 steps/rad | 509 steps/rad |
+| wrist | 127 steps/rad | 32 steps/rad |
 
 **Check one axis at a time.** Send `H`, then command exactly one revolution and
 see whether the joint agrees:
@@ -310,7 +333,7 @@ far it *really* went, type both numbers in, and it prints the corrected value:
 
 ```
 asked for 90, really moved 72
-  -> COLUMN_GEARING should be about 25.00  (it is 20.0)   ->  3183 steps per radian
+  -> COLUMN_GEARING should be about 23.75  (it is 19.0)   ->  3024 steps per radian
 ```
 
 For the shoulder it corrects `SHOULDER_LEAD_M` instead, since that axis has a
@@ -336,8 +359,8 @@ this is why.
 
 ### Three joints carry a simulation/real swap
 
-Gazebo will move a joint as fast as you ask; the real arm cannot. With 20:1 on
-the column and 17:1 on the forearm, three of the four joints are far outside what
+Gazebo will move a joint as fast as you ask; the real arm cannot. With 19:1 on
+the column and 16:1 on the forearm, three of the four joints are far outside what
 an Uno can step at their simulated limits, so
 `scara_moveit/config/joint_limits.yaml` carries both values and you uncomment the
 one you are running:
@@ -345,10 +368,10 @@ one you are running:
 ```yaml
   column_joint:
     # max_velocity: 1.5      # simulation
-    max_velocity: 0.39       # real hardware  (20:1, 1000 steps/s cap)
+    max_velocity: 0.41       # real hardware  (19:1, 1000 steps/s cap)
   forearm_joint:
     # max_velocity: 1.5      # simulation
-    max_velocity: 0.37       # real hardware  (17:1, 800 steps/s cap)
+    max_velocity: 0.39       # real hardware  (16:1, 800 steps/s cap)
   shoulder_joint:
     # max_velocity: 0.5      # simulation
     max_velocity: 0.012      # real hardware  (8 mm lead, 1200 steps/s cap)
@@ -358,9 +381,9 @@ one you are running:
 
 | Joint | Steps per unit | Firmware cap | = real limit | Simulated | Overstated by |
 |---|---|---|---|---|---|
-| column | 2546 /rad | 1000 steps/s | **0.39 rad/s** | 1.5 | 3.8x |
+| column | 2419 /rad | 1000 steps/s | **0.41 rad/s** | 1.5 | 3.6x |
 | shoulder | 100000 /m | 1200 steps/s | **0.012 m/s** | 0.5 | 42x |
-| forearm | 2164 /rad | 800 steps/s | **0.37 rad/s** | 1.5 | 4.1x |
+| forearm | 2037 /rad | 800 steps/s | **0.39 rad/s** | 1.5 | 3.8x |
 | wrist | 127 /rad | 500 steps/s | 3.93 rad/s | 1.5 | — (no swap needed) |
 
 The wrist needs no swap **only because its ratio is assumed to be 1:1**. If it

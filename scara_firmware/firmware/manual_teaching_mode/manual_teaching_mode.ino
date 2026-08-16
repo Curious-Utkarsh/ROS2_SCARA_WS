@@ -63,6 +63,12 @@ static const uint8_t DIR_PINS[4]  = {5, 6, 7, 13};
  *   e.g. 600-PPR encoder on the motor, 5:1 belt  ->  600*4*5 = 12000 counts/rev
  * Measure yours: send 'Z', turn the joint exactly one revolution by hand, read
  * the streamed value back -- the ratio of what you get to 2*PI is your error.
+ *
+ * The gear ratios below are PLACEHOLDERS -- this robot has no encoders fitted.
+ * They are NOT the same numbers as COLUMN_GEARING / FOREARM_GEARING in
+ * scara_moveit_control.ino (19 and 16): those are motor-shaft-to-joint, while
+ * these depend on where the encoder ends up mounted. Only if you put the
+ * encoder on the motor shaft do they become 19 and 16.
  */
 static const float UNITS_PER_COUNT[NUM_JOINTS] = {
   (2.0f * PI) / (2400.0f * 5.0f),   /* column   600 PPR x4, 5:1  [rad/count] */

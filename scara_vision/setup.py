@@ -27,6 +27,7 @@ setup(
             'hand_gesture_control = scara_vision.hand_gesture_control:main',
             'color_box_detector = scara_vision.color_box_detector:main',
             'fixed_camera_color_detector = scara_vision.fixed_camera_color_detector:main',
+            'color_publisher = scara_vision.color_publisher:main',
         ],
     },
 )

@@ -33,9 +33,9 @@ STEPS_PER_MOTOR_TURN = 800.0        # 200 steps x 4 microsteps (jumper on M1)
 # name, lowest, highest, unit, "nice" unit, how many nice units in one SI unit,
 # and the gearing the sketch is currently using
 JOINTS = [
-    ("column",   -2.00,  2.00, "rad", "deg", 57.2958, 20.0),
+    ("column",   -2.00,  2.00, "rad", "deg", 57.2958, 19.0),
     ("shoulder", -0.15,  0.02, "m",   "mm",  1000.0,  None),   # leadscrew
-    ("forearm",  -2.00,  2.00, "rad", "deg", 57.2958, 17.0),
+    ("forearm",  -2.00,  2.00, "rad", "deg", 57.2958, 16.0),
     ("wrist",    -2.00,  2.00, "rad", "deg", 57.2958, 1.0),
 ]
 

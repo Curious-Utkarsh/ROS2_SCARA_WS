@@ -14,9 +14,9 @@ default_acceleration_scaling_factor: 0.1
 # each motor turns in 800 microsteps, so:
 #
 #   joint     gearing        steps per unit   firmware cap   -> max joint speed
-#   column    20:1           2546 steps/rad   1000 steps/s      0.39 rad/s
+#   column    19:1           2419 steps/rad   1000 steps/s      0.41 rad/s
 #   shoulder  8 mm lead    100000 steps/m     1200 steps/s      0.012 m/s
-#   forearm   17:1           2164 steps/rad    800 steps/s      0.37 rad/s
+#   forearm   16:1           2037 steps/rad    800 steps/s      0.39 rad/s
 #   wrist     1:1 (TBC)       127 steps/rad    500 steps/s      3.93 rad/s
 #
 # The firmware caps (MAX_SPEED[] in scara_moveit_control.ino) sum to 3500
@@ -37,13 +37,13 @@ joint_limits:
   column_joint:
     has_velocity_limits: true
     # max_velocity: 1.5      # simulation
-    max_velocity: 0.39       # real hardware  (20:1, 1000 steps/s cap)
+    max_velocity: 0.41       # real hardware  (19:1, 1000 steps/s cap)
     has_acceleration_limits: false
     max_acceleration: 0
   forearm_joint:
     has_velocity_limits: true
     # max_velocity: 1.5      # simulation
-    max_velocity: 0.37       # real hardware  (17:1, 800 steps/s cap)
+    max_velocity: 0.39       # real hardware  (16:1, 800 steps/s cap)
     has_acceleration_limits: false
     max_acceleration: 0
   left_finger_joint:
