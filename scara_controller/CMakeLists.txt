@@ -42,6 +42,7 @@ ament_python_install_package(${PROJECT_NAME})
 # Install Python executables
 install(PROGRAMS
   ${PROJECT_NAME}/slider_controller.py
+  ${PROJECT_NAME}/realistic_slider_controller.py
   ${PROJECT_NAME}/manual_teaching/serial_joint_publisher.py
   DESTINATION lib/${PROJECT_NAME}
 )

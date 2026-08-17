@@ -14,6 +14,7 @@ find_package(hardware_interface REQUIRED)
 find_package(pluginlib REQUIRED)
 find_package(rclcpp REQUIRED)
 find_package(rclcpp_lifecycle REQUIRED)
+find_package(std_msgs REQUIRED)
 
 # LibSerial ships a pkg-config file rather than a CMake config package.
 find_package(PkgConfig REQUIRED)
@@ -23,6 +24,7 @@ pkg_check_modules(SERIAL REQUIRED libserial)
 # library rather than an executable.
 add_library(scara_hardware_interface SHARED
   src/scara_hardware_interface.cpp
+  src/conveyor_relay.cpp
 )
 
 target_include_directories(scara_hardware_interface PUBLIC
@@ -36,6 +38,7 @@ ament_target_dependencies(scara_hardware_interface
   pluginlib
   rclcpp
   rclcpp_lifecycle
+  std_msgs
 )
 
 target_link_libraries(scara_hardware_interface ${SERIAL_LDFLAGS})
@@ -73,6 +76,7 @@ ament_export_dependencies(
   pluginlib
   rclcpp
   rclcpp_lifecycle
+  std_msgs
 )
 
 if(BUILD_TESTING)

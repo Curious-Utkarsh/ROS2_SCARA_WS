@@ -19,10 +19,17 @@ from std_msgs.msg import String
 # Starting thresholds: H min, S min, V min, H max, S max, V max.
 # Red's H min is ABOVE its H max on purpose -- red sits at both ends of the hue
 # scale, so its range wraps around. make_mask() below handles that.
+#
+# conveyor_color_gate.py reads this table too, so tune it here -- with the
+# sliders -- and the conveyor cell picks the tuning up with no changes.
 THRESHOLDS = {
     "red":    [170, 100, 70, 10, 255, 255],
     "green":  [40, 70, 50, 85, 255, 255],
     "yellow": [20, 120, 120, 35, 255, 255],
+    # Blue starts from the simulation's range (a deep navy, capped in value so
+    # the robot's own blue links do not match). A real webcam will almost
+    # certainly need this one retuned with the sliders.
+    "blue":   [105, 120, 30, 130, 255, 160],
 }
 
 # Colour to draw each box in, in BGR.
@@ -30,6 +37,7 @@ BOX_COLOUR = {
     "red":    (0, 0, 255),
     "green":  (0, 255, 0),
     "yellow": (0, 255, 255),
+    "blue":   (255, 0, 0),
 }
 
 SLIDER_NAMES = ["H min", "S min", "V min", "H max", "S max", "V max"]

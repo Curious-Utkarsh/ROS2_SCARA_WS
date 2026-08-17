@@ -157,12 +157,24 @@ CallbackReturn ScaraHardwareInterface::on_activate(const rclcpp_lifecycle::State
   busy_ = false;
   have_sent_ = false;
 
+  // The sketch boots with the belt stopped; say so out loud anyway, so ROS and
+  // the Arduino cannot disagree about it after a reconnect.  Then start
+  // listening -- a latched /conveyor/run will arrive straight away and override
+  // this if the belt is supposed to be running.
+  sendConveyor(false);
+  conveyor_.start();
+
   RCLCPP_INFO(logger(), "Hardware active -- assuming the arm is parked at zero");
   return CallbackReturn::SUCCESS;
 }
 
 CallbackReturn ScaraHardwareInterface::on_deactivate(const rclcpp_lifecycle::State &)
 {
+  // Order matters: stop listening first, then stop the belt, then hang up.
+  // Leaving a conveyor running after the controllers have gone away would mean
+  // nothing was left that could switch it off.
+  conveyor_.stop();
+  sendConveyor(false);
   closePort();
   RCLCPP_INFO(logger(), "Hardware stopped");
   return CallbackReturn::SUCCESS;
@@ -253,6 +265,16 @@ hardware_interface::return_type ScaraHardwareInterface::read(
 hardware_interface::return_type ScaraHardwareInterface::write(
   const rclcpp::Time & time, const rclcpp::Duration &)
 {
+  // --- the conveyor belt, first -------------------------------------------
+  // Before anything else, and before every early return below.  The belt must
+  // be able to stop while the arm is standing still, and it must not be made to
+  // wait behind the arm's DONE handshake -- "stop the belt" is the one message
+  // here that is ever urgent.
+  bool run_belt = false;
+  if (conveyor_.takePending(run_belt)) {
+    sendConveyor(run_belt);
+  }
+
   // --- the optional handshake gate -----------------------------------------
   // With wait_for_done_ ON we hold back the next target until the Arduino says
   // 'D'.  That is strict point-to-point motion: the motors come to a complete
@@ -331,6 +353,21 @@ void ScaraHardwareInterface::handleStatusLine(const std::string & line)
       break;
     default:
       break;  // line noise, partial frame after a reset, etc.
+  }
+}
+
+void ScaraHardwareInterface::sendConveyor(bool run)
+{
+  if (!arduino_.IsOpen()) {
+    return;
+  }
+  try {
+    // "C 1" runs the belt, "C 0" stops it.  Same wire, same line-based
+    // protocol as the "J ..." frames -- see readMessage() in the sketch.
+    arduino_.Write(run ? "C 1\n" : "C 0\n");
+    RCLCPP_INFO(logger(), "Conveyor belt %s", run ? "running" : "stopped");
+  } catch (const std::exception & e) {
+    RCLCPP_ERROR(logger(), "Failed to switch the conveyor belt: %s", e.what());
   }
 }
 

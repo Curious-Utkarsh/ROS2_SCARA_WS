@@ -12,6 +12,12 @@
   <exec_depend>robot_state_publisher</exec_depend>
   <exec_depend>urdf</exec_depend>
   <exec_depend>joint_state_publisher_gui</exec_depend>
+  <!-- NOTE: display.launch.py realistic:=True runs scara_controller's
+       realistic_slider_controller.py, but that is deliberately NOT declared as
+       a dependency here: scara_controller already depends on this package, and
+       naming it back would make the two impossible to build. -->
+  <!-- <exec_depend>scara_controller</exec_depend> -->
+
   <exec_depend>rviz2</exec_depend>
   <exec_depend>xacro</exec_depend>
   <exec_depend>ros2launch</exec_depend>

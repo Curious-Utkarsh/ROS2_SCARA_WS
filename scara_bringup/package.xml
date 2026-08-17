@@ -13,7 +13,9 @@
   <exec_depend>scara_controller</exec_depend>
   <exec_depend>scara_description</exec_depend>
   <exec_depend>scara_moveit</exec_depend>
-  <!-- <exec_depend>scara_vision</exec_depend> -->
+  <!-- real_conveyor.launch.py runs the colour gate and the state machine -->
+  <exec_depend>scara_vision</exec_depend>
+  <exec_depend>scara_conveyor</exec_depend>
   <!-- <exec_depend>pymoveit2</exec_depend> -->
 
   <test_depend>ament_lint_auto</test_depend>

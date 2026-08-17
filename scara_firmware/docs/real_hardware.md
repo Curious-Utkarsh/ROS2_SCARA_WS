@@ -85,6 +85,7 @@ package.
 | `forearm_joint` | revolute | Z | D4 | D7 | rad |
 | `wrist_joint` | revolute | A | D12 | D13 | rad |
 | `left_finger_joint` | servo | — | **D11** (Z+ header) | — | m |
+| conveyor belt relay | on/off | — | **D10** (Y+ header) | — | — |
 
 `ENABLE` is D8 and is **active LOW** — LOW energises the drivers.
 
@@ -144,6 +145,7 @@ Line-based ASCII at 115200 8N1. Deliberately the same frame format as
 | `H\n` | Treat the current pose as zero (re-home in place) |
 | `F\n` | Free the drivers — the arm can be pushed by hand |
 | `L\n` | Lock the drivers — holding torque on (power-on default) |
+| `C 1\n` / `C 0\n` | Run / stop the conveyor belt relay |
 | `?\n` | Print the banner |
 
 **Arduino to ROS**
@@ -452,7 +454,141 @@ ros2 topic echo /joint_states             # the commands, echoed back
 
 ---
 
-## 8. Where things live
+## 8. The conveyor belt
+
+The belt is a mains motor behind a relay, so the only thing to say to it is on or
+off. Its signal wire goes to the **Y+ endstop header, Arduino D10** — free
+because the four steppers use D2/D5, D3/D6, D4/D7 and D12/D13, and the gripper
+servo has D11.
+
+### Why it goes down the arm's cable
+
+`ScaraHardwareInterface` opens `/dev/ttyACM0` in `on_activate()` and holds it for
+as long as the controllers run. A serial port has exactly one owner, so no
+separate node can open it to say "stop the belt".
+
+The hardware interface therefore carries the message itself. It runs a small
+node of its own on a background thread (`src/conveyor_relay.cpp`), listens on
+`/conveyor/run`, and writes `C 1` / `C 0` on the wire it already owns:
+
+```
+conveyor_state_machine --> /conveyor/run --> ScaraHardwareInterface
+                            (std_msgs/Bool)      |  "C 0"
+                                                 v
+                                          Arduino D10 --> relay --> belt
+```
+
+Three things about it are deliberate:
+
+- **The belt command goes out first, before every early return in `write()`.**
+  Stopping the belt must not have to wait behind an idle arm or the `DONE`
+  handshake — it is the one urgent message on this wire.
+- **`/conveyor/run` is latched** (reliable + transient-local, depth 1), matching
+  `conveyor_state_machine.py`. So the interface learns the current belt state the
+  moment it comes up, without waiting for the next change. **Any publisher on
+  this topic must be latched too**, or the messages never arrive.
+- **The belt is stopped on activate and on deactivate.** Nothing should be left
+  running once the controllers have gone away, because then nothing is left that
+  could switch it off. The sketch also boots with the relay off.
+
+### Testing the relay on its own
+
+No ROS needed. `ros2 run scara_firmware scara_gui.py`, connect, and use the
+conveyor button. If it runs when it says stopped, flip `CONVEYOR_ACTIVE_LOW` in
+the sketch — most little relay boards switch on when pulled LOW, but not all.
+
+### The sorting cell
+
+```bash
+ros2 launch scara_bringup real_conveyor.launch.py serial_port:=/dev/ttyACM0
+ros2 run scara_conveyor hardware_pick_executor --ros-args -p target_color:=R
+```
+
+`conveyor_color_gate` (in `scara_vision`) watches the belt camera and publishes
+`/conveyor/box_at_pickup` when a box of the wanted colour has its middle within
+`center_tolerance_px` of the middle of the picture, for a few frames running.
+That is the same message the simulated belt sends, so `conveyor_state_machine.py`
+runs **completely unchanged** — freeze the belt, trigger the pick, wait for
+`/scara/pick_completed`, start the belt, repeat. The simulation and the real cell
+are one pipeline with a different pair of eyes.
+
+HSV ranges live in `scara_vision/hardware_color_publisher.py`, which has sliders
+for tuning them; the gate reads the same table.
+
+### The pick: blind, because it can afford to be
+
+`hardware_pick_executor.py` never looks at the box it is picking, and does not
+need to — the gate stops every box in the same place, under the camera centre.
+That suits real hardware better than looking would: the arm covers the box as it
+comes down, so a camera would lose sight of it at the worst possible moment.
+
+**The drop positions are the simulation's**, imported from
+`conveyor_pick_executor.py` rather than copied, so retuning Red there moves the
+real cell too — and Yellow and Blue stay exact mirrors of Red and Green.
+
+The pick pose comes from one of two places:
+
+| `pick_source` | Where the pose comes from |
+|---|---|
+| `ik` (default) | MoveIt solves for the same belt pickup point the simulation uses, `common.pickup_grasp_point_base()` |
+| `taught` | The four numbers in `pick_approach` — park the arm over a box with the sliders or `scara_gui.py` and read them off |
+
+```bash
+ros2 run scara_conveyor hardware_pick_executor --ros-args \
+    -p target_color:=R -p pick_source:=taught \
+    -p pick_approach:='[0.0, 0.0, 0.0, 0.0]'
+```
+
+The grasp copies the simulation's trick: hold the approach pose and wind only
+the shoulder down to the bottom of its travel, so nothing can swing sideways
+into the box on the way down.
+
+Two parameters worth knowing about:
+
+- `grip_closed` defaults to the simulation's −0.03 m. The firmware maps −0.06 m
+  to a fully shut gripper, so a real box may well need more than the simulated
+  one. Measure it and set it.
+- `velocity_scaling` defaults to **1.0**, not the 0.1 in `joint_limits.yaml`.
+  That file already holds the real stepper speeds, so 1.0 means "as fast as the
+  motors can manage", and 0.1 would be ten times slower again.
+
+---
+
+## 9. Making RViz move at the arm's speed
+
+The arm in RViz has no motors, so it arrives instantly. The real one does not:
+the shoulder's full 0.15 m takes about **twelve and a half seconds**, because
+1200 steps/s over a 100000 steps/m leadscrew is 0.012 m/s.
+
+`scara_controller/realistic_slider_controller.py` closes the gap. It puts a
+pretend arm between the sliders and the controllers, obeying the same top speeds
+and speed-up rates as the sketch (`stepper_profile.py` holds the numbers, copied
+from it):
+
+```bash
+# real arm; RViz and the metal now arrive together
+ros2 launch scara_bringup real_bringup.launch.py serial_port:=/dev/ttyACM0 \
+    use_moveit:=False use_slider:=True
+
+# no robot at all, just to see how long things really take
+ros2 launch scara_description display.launch.py realistic:=True
+```
+
+**This is not feedback.** Nothing asks the arm where it is — it has no encoders
+and cannot answer. It is the Arduino's own arithmetic, run on this side of the
+cable. If the arm skips steps, RViz will not know, exactly as before.
+
+Add `realistic:=False` for the old instant behaviour, or `speed_scale:=4.0` to
+preview a long move without waiting for it. MoveIt needs none of this: it already
+time-parameterises against the real velocities in
+`scara_moveit/config/joint_limits.yaml`.
+
+`stepper_profile.py` must be kept in step with the sketch — change a gear ratio
+or a top speed there and change it here, or RViz starts lying again.
+
+---
+
+## 10. Where things live
 
 | Path | What |
 |---|---|
@@ -461,16 +597,23 @@ ros2 topic echo /joint_states             # the commands, echoed back
 | `scara_description/urdf/ros2control.xacro` | The `is_sim` / `is_real` switch that picks the backend |
 | `scara_bringup/launch/real_bringup.launch.py` | Real robot |
 | `scara_bringup/launch/simulation_bringup.launch.py` | Gazebo |
+| `scara_firmware/src/conveyor_relay.cpp` | Listens on `/conveyor/run`, so the belt can share the arm's port |
+| `scara_controller/scara_controller/stepper_profile.py` | The stepper speeds, mirrored from the sketch |
+| `scara_vision/scara_vision/conveyor_color_gate.py` | Says when a wanted box is centred in the picture |
+| `scara_conveyor/scara_conveyor/hardware_pick_executor.py` | Blind pick at the belt centre; sim's drop positions |
+| `scara_bringup/launch/real_conveyor.launch.py` | The whole sorting cell on real hardware |
 
 Related: `manual_teaching_mode.ino` streams joint values *out* of the arm using
 the same `J` frame, for lead-through teaching.
 
 ---
 
-## 9. Possible next steps
+## 11. Possible next steps
 
-- **Limit switches for homing.** The shield has endstop headers on D9–D11. This
-  would remove the park-at-zero ritual, the single biggest weakness here.
+- **Limit switches for homing.** The shield has endstop headers on D9 and D10 —
+  though D10 now drives the conveyor relay, so an X endstop on D9 is the one
+  going spare. This would remove the park-at-zero ritual, the single biggest
+  weakness here.
 - **A hardware E-stop** in series with `ENABLE`. Software cannot guarantee a stop.
 - **Encoders (AS5600 + TCA9548A)** would turn `read()` into a real measurement
   and make this a closed-loop robot.

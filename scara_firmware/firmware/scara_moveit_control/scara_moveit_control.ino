@@ -14,6 +14,7 @@
      "H"   this position is now zero
      "F"   free the motors (you can push the arm by hand)
      "L"   lock the motors (holding torque back on)
+     "C 1" run the conveyor belt      "C 0" stop it
      "?"   print the banner
 
    WHAT WE SEND BACK
@@ -70,6 +71,21 @@ AccelStepper wristStepper(1, 12, 13);     // A axis - turns the wrist
 // which is Arduino pin 11.
 #define GRIPPER_PIN 11
 Servo gripperServo;
+
+// The conveyor belt is not a motor we control, it is a mains motor behind a
+// relay: we can only switch it on and off. The relay's signal wire goes to the
+// Y+ endstop socket, which is Arduino pin 10.
+//
+// Pin 10 is free: the four steppers use 2/5, 3/6, 4/7 and 12/13, and the servo
+// has 11. CHECK YOUR SHIELD with a continuity tester before you wire it up --
+// some CNC Shield revisions label the endstop headers differently, and if yours
+// is not pin 10 this one number is all you change.
+#define CONVEYOR_PIN 10
+
+// Most little relay boards switch on when their input is pulled LOW. If yours
+// works back to front - belt runs when it should be stopped - change this to
+// false and nothing else.
+const boolean CONVEYOR_ACTIVE_LOW = true;
 
 
 // ===========================================================================
@@ -179,6 +195,15 @@ const int GRIPPER_WAIT_TIME = 400;   // milliseconds
 boolean isMoving = false;             // true between sending "B" and "D"
 float gripperTarget = 0.0;            // where we last told the gripper to go
 unsigned long gripperFinishTime = 0;  // when the servo should be settled
+boolean conveyorRunning = false;      // is the belt switched on right now?
+unsigned long conveyorWrittenTime = 0;  // when we last wrote the belt pin
+
+// How often to write the belt state to the pin again. The relay switches a
+// mains motor, and the electrical noise that makes can flip a bit in the pin
+// register without this sketch asking for it. Writing what we want a few times
+// a second costs a couple of microseconds and turns a stuck belt into a glitch
+// nobody notices.
+const unsigned long CONVEYOR_REWRITE_TIME = 200;   // milliseconds
 
 
 // ===========================================================================
@@ -195,10 +220,28 @@ void freeMotors() {
   digitalWrite(ENABLE_PIN, HIGH);     // high means off
 }
 
+// Switch the conveyor belt on or off.
+void setConveyor(boolean run) {
+  conveyorRunning = run;
+
+  // pinMode again as well as digitalWrite. If noise from the belt motor ever
+  // knocked the pin out of OUTPUT mode it would float, and a floating input is
+  // exactly the state where a relay does whatever it likes.
+  pinMode(CONVEYOR_PIN, OUTPUT);
+
+  if (CONVEYOR_ACTIVE_LOW) {
+    digitalWrite(CONVEYOR_PIN, run ? LOW : HIGH);
+  } else {
+    digitalWrite(CONVEYOR_PIN, run ? HIGH : LOW);
+  }
+  conveyorWrittenTime = millis();
+}
+
 void printBanner() {
   Serial.println("# SCARA MoveIt control");
   Serial.println("# send: J column shoulder forearm wrist gripper");
   Serial.println("# also: H = zero here, F = free motors, L = lock motors");
+  Serial.println("# belt: C 1 = run conveyor, C 0 = stop conveyor");
 }
 
 // Change a gripper position in metres into an angle for the servo.
@@ -342,6 +385,20 @@ void readMessage() {
     lockMotors();
     Serial.println("# motors are locked");
   }
+  else if (firstLetter == 'C') {
+    // "C 1" or "C 0". Anything that is not a 1 stops the belt, because the
+    // safe thing to do with a half-read message is to stop.
+    //
+    // Read the argument itself instead of hunting for a '1' anywhere in the
+    // line. A '1' can turn up in a line that arrived spliced onto the tail of
+    // a J message ("...0.1000C 0"), and the old test would have read that as
+    // "run" - a stop command that starts the belt.
+    String argument = message.substring(1);
+    argument.trim();
+    boolean run = (argument.length() > 0 && argument.charAt(0) == '1');
+    setConveyor(run);
+    Serial.println(run ? "# conveyor running" : "# conveyor stopped");
+  }
   else if (firstLetter == '?') {
     printBanner();
   }
@@ -361,6 +418,11 @@ void setup() {
 
   pinMode(ENABLE_PIN, OUTPUT);
   lockMotors();
+
+  // The belt starts STOPPED. Nothing should start moving on its own just
+  // because somebody plugged the USB cable in.
+  pinMode(CONVEYOR_PIN, OUTPUT);
+  setConveyor(false);
 
   columnStepper.setMaxSpeed(COLUMN_TOP_SPEED);
   shoulderStepper.setMaxSpeed(SHOULDER_TOP_SPEED);
@@ -405,6 +467,12 @@ void loop() {
   shoulderStepper.run();
   forearmStepper.run();
   wristStepper.run();
+
+  // Say again what the belt should be doing. Nothing here changes the state,
+  // it only writes the state we already hold back onto the pin.
+  if (millis() - conveyorWrittenTime >= CONVEYOR_REWRITE_TIME) {
+    setConveyor(conveyorRunning);
+  }
 
   // Have we finished the job? Say so once, and then wait for the next one.
   if (isMoving && allMotorsArrived() && millis() >= gripperFinishTime) {

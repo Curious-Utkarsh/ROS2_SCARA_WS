@@ -19,6 +19,8 @@
 #include <rclcpp_lifecycle/node_interfaces/lifecycle_node_interface.hpp>
 #include <rclcpp_lifecycle/state.hpp>
 
+#include "scara_firmware/conveyor_relay.hpp"
+
 namespace scara_firmware
 {
 
@@ -48,9 +50,15 @@ public:
 private:
   void closePort();
   void handleStatusLine(const std::string & line);
+  void sendConveyor(bool run);
 
   LibSerial::SerialPort arduino_;
   std::string port_;
+
+  // The conveyor belt's relay hangs off the same Arduino, so its on/off command
+  // has to share this port.  This little listener collects it from
+  // /conveyor/run; write() puts it on the wire.
+  ConveyorRelay conveyor_;
 
   // One entry per joint in the URDF's <ros2_control> block, in URDF order.
   std::vector<double> position_commands_;

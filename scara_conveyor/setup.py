@@ -27,6 +27,7 @@ setup(
             "object_spawner = scara_conveyor.object_spawner:main",
             "conveyor_controller = scara_conveyor.conveyor_controller:main",
             "conveyor_pick_executor = scara_conveyor.conveyor_pick_executor:main",
+            "hardware_pick_executor = scara_conveyor.hardware_pick_executor:main",
             "conveyor_state_machine = scara_conveyor.conveyor_state_machine:main",
             "arm_camera_viewer = scara_conveyor.arm_camera_viewer:main",
         ],
