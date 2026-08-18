@@ -27,7 +27,7 @@ ONE_TURN_IN_RADIANS = 2.0 * math.pi
 
 COLUMN_GEARING = 19.0               # motor turns per joint turn
 FOREARM_GEARING = 16.0
-WRIST_GEARING = 1.0                 # NOT MEASURED YET -- same caveat as the sketch
+WRIST_GEARING = 4.5
 
 SHOULDER_MM_PER_TURN = 0.008        # leadscrew: metres lifted per motor turn
 
@@ -74,7 +74,7 @@ def _steps_per_unit(gearing):
 #   column     2419 /rad        1000 st/s   0.413 rad/s    0.827 rad/s^2
 #   shoulder 100000 /m          1200 st/s   0.012 m/s      0.024 m/s^2
 #   forearm    2037 /rad         800 st/s   0.393 rad/s    0.785 rad/s^2
-#   wrist       127 /rad         500 st/s   3.927 rad/s    7.854 rad/s^2
+#   wrist       573 /rad         500 st/s   0.873 rad/s    1.745 rad/s^2
 #
 # The shoulder is the one that shows why this file exists: its full 0.15 m of
 # travel really takes about 12.5 seconds.

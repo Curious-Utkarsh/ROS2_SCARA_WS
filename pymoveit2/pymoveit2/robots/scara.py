@@ -4,7 +4,11 @@ MOVE_GROUP_ARM = "arm"
 MOVE_GROUP_GRIPPER = "gripper"
 
 OPEN_GRIPPER_JOINT_POSITIONS = [0.0]
-CLOSED_GRIPPER_JOINT_POSITIONS = [-0.03]
+
+# Fully shut, the same as the control panel's gripper button and the firmware's
+# GRIPPER_CLOSED_METRES. The simulation used to close to -0.03, half the travel,
+# which on the real gripper looked like a twitch rather than a grip.
+CLOSED_GRIPPER_JOINT_POSITIONS = [-0.06]
 
 def joint_names() -> List[str]:
     return [

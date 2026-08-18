@@ -6,7 +6,17 @@
 
     ros2 topic echo /detected_color
 
-Drag the sliders until each object gets a box and nothing else does.
+Three windows open:
+
+    camera    the picture, with a box round every colour that was found
+    masks     what each colour's thresholds actually select, side by side
+    cropped   the same picture with the bottom cut off, so you can see what is
+              left once the near edge of the belt is out of the way
+
+Drag the sliders until each object is white in ITS OWN mask panel and black in
+the other two. That is easier to judge than watching the boxes flicker, because
+a mask shows you the specks and the holes that a box hides.
+
 Press 's' to print the tuned numbers, 'q' to quit.
 """
 
@@ -17,19 +27,17 @@ from rclpy.node import Node
 from std_msgs.msg import String
 
 # Starting thresholds: H min, S min, V min, H max, S max, V max.
-# Red's H min is ABOVE its H max on purpose -- red sits at both ends of the hue
-# scale, so its range wraps around. make_mask() below handles that.
+# A colour whose H min is ABOVE its H max wraps around the end of the hue scale,
+# which is how red is usually described. make_mask() below handles that.
 #
 # conveyor_color_gate.py reads this table too, so tune it here -- with the
 # sliders -- and the conveyor cell picks the tuning up with no changes.
+#
+# Measured on this cell's webcam, 2026-08-19.
 THRESHOLDS = {
-    "red":    [170, 100, 70, 10, 255, 255],
-    "green":  [40, 70, 50, 85, 255, 255],
-    "yellow": [20, 120, 120, 35, 255, 255],
-    # Blue starts from the simulation's range (a deep navy, capped in value so
-    # the robot's own blue links do not match). A real webcam will almost
-    # certainly need this one retuned with the sliders.
-    "blue":   [105, 120, 30, 130, 255, 160],
+    "red":    [144, 118, 195, 135, 229, 255],
+    "green":  [0, 85, 15, 83, 255, 211],
+    "yellow": [11, 34, 0, 48, 102, 255],
 }
 
 # Colour to draw each box in, in BGR.
@@ -37,7 +45,6 @@ BOX_COLOUR = {
     "red":    (0, 0, 255),
     "green":  (0, 255, 0),
     "yellow": (0, 255, 255),
-    "blue":   (255, 0, 0),
 }
 
 SLIDER_NAMES = ["H min", "S min", "V min", "H max", "S max", "V max"]
@@ -45,6 +52,10 @@ SLIDER_MAXES = [179, 255, 255, 179, 255, 255]
 
 MIN_PIXELS = 2000        # smaller blobs than this are ignored
 SLIDERS = "thresholds"   # name of the slider window
+MASKS = "masks"          # name of the mask window
+CROPPED = "cropped"      # name of the cut-down view
+
+PANEL_WIDTH = 320        # how wide each mask panel is drawn
 
 
 def make_mask(hsv, threshold):
@@ -62,13 +73,47 @@ def make_mask(hsv, threshold):
     return cv2.morphologyEx(mask, cv2.MORPH_OPEN, np.ones((5, 5), np.uint8))
 
 
+def mask_gallery(masks):
+    """Every mask side by side in one picture, each with its name on it.
+
+    The masks are black and white, so they are tinted with the colour they
+    belong to before being joined up -- otherwise three white-on-black panels
+    are impossible to tell apart at a glance.
+    """
+    panels = []
+    for colour, mask in masks.items():
+        height = int(mask.shape[0] * PANEL_WIDTH / mask.shape[1])
+        small = cv2.resize(mask, (PANEL_WIDTH, height), interpolation=cv2.INTER_NEAREST)
+
+        # Grey -> BGR, then knock out the channels this colour does not use, so
+        # the green mask comes out green and the red one red.
+        panel = cv2.cvtColor(small, cv2.COLOR_GRAY2BGR)
+        panel[:] = panel * (np.array(BOX_COLOUR[colour], dtype=np.float32) / 255.0)
+
+        white = int(cv2.countNonZero(small))
+        cv2.putText(panel, f"{colour}  {white} px", (8, 22),
+                    cv2.FONT_HERSHEY_SIMPLEX, 0.55, (255, 255, 255), 1)
+        panels.append(panel)
+
+    return cv2.hconcat(panels) if panels else None
+
+
 class ColorPublisher(Node):
 
     def __init__(self):
         super().__init__("color_publisher")
 
         self.declare_parameter("camera", 4)
+
+        # How many rows to cut off the BOTTOM of the picture for the "cropped"
+        # window. This is a view, not a filter: the boxes and /detected_color
+        # still come from the whole frame. It is here so you can see what the
+        # picture would look like with the near edge of the belt out of shot.
+        self.declare_parameter("crop_bottom", 130)
+
         self.camera = cv2.VideoCapture(self.get_parameter("camera").value)
+        self.crop_bottom = int(self.get_parameter("crop_bottom").value)
+        self.warned_about_crop = False
 
         self.publisher = self.create_publisher(String, "detected_color", 10)
         self.last = None
@@ -76,10 +121,13 @@ class ColorPublisher(Node):
 
         # Six sliders per colour, all in one window.
         cv2.namedWindow(SLIDERS, cv2.WINDOW_NORMAL)
-        cv2.resizeWindow(SLIDERS, 400, 560)
+        cv2.resizeWindow(SLIDERS, 400, 460)
         for colour, values in THRESHOLDS.items():
             for name, value, top in zip(SLIDER_NAMES, values, SLIDER_MAXES):
                 cv2.createTrackbar(f"{colour} {name}", SLIDERS, value, top, lambda _: None)
+
+        cv2.namedWindow(MASKS, cv2.WINDOW_NORMAL)
+        cv2.namedWindow(CROPPED, cv2.WINDOW_NORMAL)
 
         self.create_timer(0.03, self.tick)
 
@@ -111,6 +159,25 @@ class ColorPublisher(Node):
             print(f'    "{colour}": {self.read_sliders(colour)},')
         print("}")
 
+    def crop(self, image):
+        """`crop_bottom` rows taken off the bottom of anything frame-shaped.
+
+        The camera view, the cropped view and every mask panel all go through
+        here, so the three windows can never disagree about where the cut is.
+        """
+        height = image.shape[0]
+
+        if self.crop_bottom >= height:
+            if not self.warned_about_crop:
+                self.get_logger().warn(
+                    f"crop_bottom is {self.crop_bottom} but the picture is only "
+                    f"{height} rows tall -- showing it uncropped"
+                )
+                self.warned_about_crop = True
+            return image
+
+        return image[:height - self.crop_bottom]
+
     def tick(self):
         ok, frame = self.camera.read()
         if not ok:
@@ -118,11 +185,14 @@ class ColorPublisher(Node):
 
         hsv = cv2.cvtColor(frame, cv2.COLOR_BGR2HSV)
 
-        # Box every colour we can see, and keep the biggest one.
+        # Box every colour we can see, and keep the biggest one. The masks are
+        # kept as we go so the gallery below shows exactly what was measured,
+        # not a second set built from sliders that may have moved since.
+        masks = {}
         best, most = "none", MIN_PIXELS
         for colour in THRESHOLDS:
-            mask = make_mask(hsv, self.read_sliders(colour))
-            pixels = self.draw_box(frame, mask, colour)
+            masks[colour] = make_mask(hsv, self.read_sliders(colour))
+            pixels = self.draw_box(frame, masks[colour], colour)
             if pixels > most:
                 best, most = colour, pixels
 
@@ -134,6 +204,12 @@ class ColorPublisher(Node):
 
         cv2.putText(frame, best, (10, 30), cv2.FONT_HERSHEY_SIMPLEX, 1.0, (255, 255, 255), 2)
         cv2.imshow("camera", frame)
+
+        gallery = mask_gallery({c: self.crop(m) for c, m in masks.items()})
+        if gallery is not None:
+            cv2.imshow(MASKS, gallery)
+
+        cv2.imshow(CROPPED, self.crop(frame))
 
         key = cv2.waitKey(1) & 0xFF
         if key == ord("s"):

@@ -61,6 +61,13 @@ class PickAndPlace(Node):
             group_name=scara.MOVE_GROUP_ARM,
             callback_group=callback_group,
         )
+
+        # The same two sliders as the RViz MotionPlanning panel, set here so a
+        # run from the command line moves at the speed you tuned at.  They are
+        # fractions of joint_limits.yaml, which already holds the real stepper
+        # speeds -- so 0.4 is "40% of what the motors can actually do".
+        self.arm.max_velocity = 0.4
+        self.arm.max_acceleration = 0.2
         self.gripper = GripperInterface(
             node=self,
             gripper_joint_names=scara.gripper_joint_names(),

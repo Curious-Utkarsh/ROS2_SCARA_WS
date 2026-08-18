@@ -194,7 +194,7 @@ Everything mechanical lives in one block near the top of the sketch:
 #define MICROSTEPS      4.0f     // jumper on M1 only -> 1/4 step
 #define COLUMN_GEAR    19.0f     // motor revs per joint rev
 #define FOREARM_GEAR   16.0f     // motor revs per joint rev
-#define WRIST_GEAR      1.0f     // UNVERIFIED placeholder
+#define WRIST_GEAR      4.5f     // motor revs per joint rev
 #define SHOULDER_LEAD_M 0.008f   // leadscrew travel per motor rev
 ```
 
@@ -205,7 +205,7 @@ which produce:
 | column | 19:1 | 2419 steps/rad |
 | shoulder | 8 mm lead | 100000 steps/m |
 | forearm | 16:1 | 2037 steps/rad |
-| wrist | 1:1 **(TBC)** | 127 steps/rad |
+| wrist | 4.5:1 | 573 steps/rad |
 
 Each is `800 x gearing / 2pi`, or `800 / lead` for the leadscrew.
 
@@ -306,7 +306,7 @@ would give a quarter of the resolution everywhere:
 | column | 2419 steps/rad | 605 steps/rad |
 | shoulder | 100000 steps/m | 25000 steps/m |
 | forearm | 2037 steps/rad | 509 steps/rad |
-| wrist | 127 steps/rad | 32 steps/rad |
+| wrist | 573 steps/rad | 143 steps/rad |
 
 **Check one axis at a time.** Send `H`, then command exactly one revolution and
 see whether the joint agrees:
@@ -330,19 +330,21 @@ straight to the Arduino — no ROS, no MoveIt — so you can use it before anyth
 else is running. **Close it before launching `real_bringup.launch.py`**: only one
 program can hold the serial port at a time.
 
-Section 5 of the window does the gearing sum for you. Move a joint, measure how
-far it *really* went, type both numbers in, and it prints the corrected value:
+To correct a gearing by hand: ask a joint for a known angle, measure what it
+*really* did, and scale the constant by the ratio between them.
 
 ```
-asked for 90, really moved 72
-  -> COLUMN_GEARING should be about 23.75  (it is 19.0)   ->  3024 steps per radian
+new gearing = old gearing x (asked for / really moved)
+
+asked for 90 deg, really moved 72   ->  19.0 x 90/72 = 23.75
 ```
 
-For the shoulder it corrects `SHOULDER_LEAD_M` instead, since that axis has a
-leadscrew rather than a gear.
+For the shoulder the number to correct is `SHOULDER_MM_PER_TURN` instead, and it
+scales the other way round — `old lead x (really moved / asked for)` — because a
+lead is distance per turn, not turns per unit.
 
-The joint limits and gearings are repeated at the top of `scara_gui.py`. Keep
-them in step with the sketch.
+The joint limits are repeated at the top of `scara_gui.py`. Keep them in step
+with the sketch.
 
 ---
 
@@ -359,11 +361,11 @@ The ceiling is enforced **in the firmware, not in MoveIt**, so the simulation
 still runs at full speed. If a move looks slower on the real arm than in RViz,
 this is why.
 
-### Three joints carry a simulation/real swap
+### All four joints carry a simulation/real swap
 
 Gazebo will move a joint as fast as you ask; the real arm cannot. With 19:1 on
-the column and 16:1 on the forearm, three of the four joints are far outside what
-an Uno can step at their simulated limits, so
+the column, 16:1 on the forearm and 4.5:1 on the wrist, every joint is outside
+what an Uno can step at its simulated limit, so
 `scara_moveit/config/joint_limits.yaml` carries both values and you uncomment the
 one you are running:
 
@@ -377,6 +379,9 @@ one you are running:
   shoulder_joint:
     # max_velocity: 0.5      # simulation
     max_velocity: 0.012      # real hardware  (8 mm lead, 1200 steps/s cap)
+  wrist_joint:
+    # max_velocity: 1.5      # simulation
+    max_velocity: 0.87       # real hardware  (4.5:1, 500 steps/s cap)
 ```
 
 **Real hardware is active.** Every value is derived from the firmware's own cap:
@@ -386,18 +391,14 @@ one you are running:
 | column | 2419 /rad | 1000 steps/s | **0.41 rad/s** | 1.5 | 3.6x |
 | shoulder | 100000 /m | 1200 steps/s | **0.012 m/s** | 0.5 | 42x |
 | forearm | 2037 /rad | 800 steps/s | **0.39 rad/s** | 1.5 | 3.8x |
-| wrist | 127 /rad | 500 steps/s | 3.93 rad/s | 1.5 | — (no swap needed) |
-
-The wrist needs no swap **only because its ratio is assumed to be 1:1**. If it
-turns out to be geared, recompute it: at 10:1 the real limit would be
-500 / 1273 = 0.39 rad/s and it would need a swap like the others.
+| wrist | 573 /rad | 500 steps/s | **0.87 rad/s** | 1.5 | 1.7x |
 
 Leaving a simulation value active on the real arm does not break anything — the
 firmware still clamps the motion — but MoveIt then reports a move finished while
 the arm is still travelling.
 
 Full-travel times at the real caps: column 2 rad in ~5 s, forearm 2 rad in ~5 s,
-shoulder 0.17 m in ~14 s.
+wrist 2 rad in ~2.3 s, shoulder 0.17 m in ~14 s.
 
 ### Watch out for the scaling factor
 
@@ -443,6 +444,50 @@ skipped step is invisible to ROS and corrupts every pose after it.
 | Motion is jerky or stalls | `MAX_SPEED` / `ACCELERATION` too high, or driver current too low |
 | Everything is offset after a while | Skipped steps. Re-park at zero and restart |
 | Arm and RViz disagree from the start | The arm was not at its zero pose at power-on |
+| X, Y and Z move but the wrist does not | The A axis jumper field is not set to `D12` — see below |
+| The wrist moves, but far too little | Old sketch flashed with `WRIST_GEARING 1.0`. It is 4.5 |
+
+### The A axis has to be told where to get its steps
+
+X, Y and Z have their STEP and DIR pins wired straight through to the Arduino.
+**A does not** — you choose what drives it.
+
+This shield decides that with a jumper field at the bottom edge, beside the
+`EN/GND … A.STEP/DIR … 5V/GND` label block. It has four columns:
+
+```
+   X     Y     Z    D12
+   |     |     |     |
+   +-- clone --+     +-- independent axis on D12/D13
+```
+
+**Put two caps in the `D12` column** — top row is STEP, bottom row is DIR — and
+none in `X`, `Y` or `Z`. That is what makes the wrist its own axis on D12/D13.
+
+A cap in the `X`, `Y` or `Z` column instead *clones* that axis: the wrist copies
+another joint and ignores D12 completely. It looks exactly like a dead wrist if
+you are only ever commanding the wrist itself.
+
+Shields without this field bring `A.STEP` / `A.DIR` out as bare pins instead, and
+you jumper them by hand to `SpnEn` (D12) and `SpnDir` (D13) on the front header —
+spindle pins, free here because this robot has no spindle.
+
+With no cap in the `D12` column, the A driver is still enabled (D8 enables all
+four together), so the motor holds firm and never steps. That is the tell:
+
+| What the wrist does | What it means |
+|---|---|
+| Holds firm, never turns | No step pulses — the `D12` jumper caps |
+| Still, but the Uno's `L` LED flickers as you move the slider | STEP and DIR swapped: D13 drives that LED |
+| Limp, no holding torque | Driver not seated, or its current pot at zero |
+| Buzzes or shakes without turning | Motor coil pairs wrong — swap the middle two wires |
+| Turns, but only ~25° across the whole slider | Gearing: reflash with `WRIST_GEARING 4.5` |
+
+`firmware/Wrist_Axis_Test/Wrist_Axis_Test.ino` drives any one socket on its own —
+type `x`, `y`, `z` or `a` in the Serial Monitor. If `a` turns the wrist,
+everything from D12 outwards is fine and the fault is in the main sketch's
+numbers. Typing `x`/`y`/`z` and watching the *wrist* is also the quickest way to
+catch a clone jumper.
 
 Useful checks:
 

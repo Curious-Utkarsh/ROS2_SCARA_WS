@@ -38,8 +38,8 @@ JOINT_NAMES = [
 
 # How far each joint is allowed to go, straight from the robot model (URDF).
 # If the Arduino miscounts, this stops RViz drawing an impossible robot.
-JOINT_MIN = [-2.0, -0.15, -2.0, -2.0, -0.06]
-JOINT_MAX = [2.0, 0.02, 2.0, 2.0, 0.0]
+JOINT_MIN = [-2.0, -0.15, -2.0, -4.712, -0.06]
+JOINT_MAX = [2.0, 0.02, 2.0, 4.712, 0.0]
 
 
 class SerialJointPublisher(Node):

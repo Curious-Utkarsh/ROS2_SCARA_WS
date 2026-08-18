@@ -168,7 +168,7 @@
         <parent link="forearm_link"/>
         <child link="wrist_link"/>
         <axis xyz="0 0 1"/>
-        <limit lower="-2.0" upper="2.0" effort="10.0" velocity="1.5"/>
+        <limit lower="-4.712" upper="4.712" effort="10.0" velocity="1.5"/>
     </joint>
 
     <!-- Tool centre point: centre of the gripper finger tips. -->

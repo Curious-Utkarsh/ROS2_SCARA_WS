@@ -7,7 +7,7 @@ default_acceleration_scaling_factor: 0.1
 
 # ── SIMULATION vs REAL HARDWARE ──────────────────────────────────────────────
 # Gazebo will happily move a joint as fast as you ask.  The real arm is limited
-# by how many steps an Arduino Uno can emit, so three joints carry two values
+# by how many steps an Arduino Uno can emit, so all four joints carry two values
 # and you uncomment the one you are running.  Exactly one must be active.
 #
 # The real values are derived, not guessed.  With a jumper on M1 only (1/4 step)
@@ -17,7 +17,7 @@ default_acceleration_scaling_factor: 0.1
 #   column    19:1           2419 steps/rad   1000 steps/s      0.41 rad/s
 #   shoulder  8 mm lead    100000 steps/m     1200 steps/s      0.012 m/s
 #   forearm   16:1           2037 steps/rad    800 steps/s      0.39 rad/s
-#   wrist     1:1 (TBC)       127 steps/rad    500 steps/s      3.93 rad/s
+#   wrist     4.5:1            573 steps/rad    500 steps/s      0.87 rad/s
 #
 # The firmware caps (MAX_SPEED[] in scara_moveit_control.ino) sum to 3500
 # steps/s, near the ~4000 steps/s an Uno can sustain across all four axes.
@@ -66,11 +66,8 @@ joint_limits:
     has_acceleration_limits: false
     max_acceleration: 0
   wrist_joint:
-    # No swap needed *if* the wrist really is 1:1 -- 500 steps/s then allows
-    # 3.9 rad/s, well above this. But the ratio is UNVERIFIED: if it turns out
-    # to be geared, recompute and add a real-hardware line like the others.
-    # e.g. at 10:1 the real limit would be 500 / 1273 = 0.39 rad/s.
     has_velocity_limits: true
-    max_velocity: 1.5
+    # max_velocity: 1.5      # simulation
+    max_velocity: 0.87       # real hardware  (4.5:1, 500 steps/s cap)
     has_acceleration_limits: false
     max_acceleration: 0

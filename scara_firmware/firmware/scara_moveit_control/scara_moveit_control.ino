@@ -104,7 +104,7 @@ const float ONE_TURN_IN_RADIANS = 6.283185;   // 2 x pi
 // "19:1" means the motor turns 19 times to turn the joint once.
 const float COLUMN_GEARING  = 19.0;   // 800 x 19 / 2pi = 2419 steps/rad
 const float FOREARM_GEARING = 16.0;   // 800 x 16 / 2pi = 2037 steps/rad
-const float WRIST_GEARING   = 1.0;    // <-- NOT MEASURED YET, please check!
+const float WRIST_GEARING   = 4.5;    // 800 x 4.5 / 2pi = 573 steps/rad
 
 // The shoulder is a leadscrew instead of a gear. One turn of the motor lifts
 // the arm by 8 mm, which is 0.008 metres.  ->  800 / 0.008 = 100000 steps/m
@@ -160,8 +160,8 @@ const float SHOULDER_LOWEST  = -0.15;   // metres
 const float SHOULDER_HIGHEST =  0.02;
 const float FOREARM_LOWEST   = -2.0;    // radians
 const float FOREARM_HIGHEST  =  2.0;
-const float WRIST_LOWEST     = -2.0;    // radians
-const float WRIST_HIGHEST    =  2.0;
+const float WRIST_LOWEST     = -4.712;  // radians (3/2 pi = +/- 270 degrees)
+const float WRIST_HIGHEST    =  4.712;
 
 // --- Gripper ---
 // ROS talks about the gripper in metres: 0 is open, -0.06 is closed.
