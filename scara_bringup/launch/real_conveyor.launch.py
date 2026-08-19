@@ -30,11 +30,18 @@ WHICH PICK NODE
                               /camera_fixed/depth_image and the Gazebo camera
                               FOV, so it cannot locate a box out here.
 
-Teach the pick pose if your belt is not where the simulated one is:
+The pick pose is already taught for this cell (measured 2026-08-19, see
+TAUGHT_PICK_APPROACH in hardware_pick_executor.py), so the plain command above
+is all you need. Teach it again if the belt or the camera moves: park the arm on
+a box at the belt centre with scara_gui.py, read the four joint values off, and
 
     ros2 run scara_conveyor hardware_pick_executor --ros-args \
-        -p target_color:=R -p pick_source:=taught \
-        -p pick_approach:='[0.0, 0.0, 0.0, 0.0]' 
+        -p target_color:=R \
+        -p pick_approach:='[-0.577, 0.0, 1.718, 1.075]' \
+        -p grasp_shoulder:=-0.084
+
+where pick_approach's shoulder is the height it lines up at and grasp_shoulder
+is the height it winds down to.
 
 HOW THE BELT ACTUALLY STOPS
 
@@ -85,6 +92,22 @@ def generate_launch_description():
             "before the belt is stopped. Widen it if boxes overshoot."
         )
     )
+    crop_rows_arg = DeclareLaunchArgument(
+        "crop_rows",
+        # 160, not the nodes' own 130: at 130 the pink strip of the belt's own
+        # frame sits just inside the top of the band and reads as red -- about
+        # 2200 pixels of it, over the 2000 a box has to beat -- so the gate
+        # announces a box and stops the belt with nothing on it. 160 puts the
+        # top cut past the strip. Measured on this cell, 2026-08-19.
+        default_value="160",
+        description=(
+            "Rows cut off the TOP, and the same off the BOTTOM, before anything "
+            "is measured. Only the band between the two lines is looked at -- set "
+            "it so the near edge of the belt and the background are both out of "
+            "shot. Tune it by eye with hardware_color_publisher, whose 'cropped' "
+            "window shows the same cut."
+        )
+    )
     pick_timeout_arg = DeclareLaunchArgument(
         "pick_timeout_s",
         default_value="120.0",
@@ -100,6 +123,9 @@ def generate_launch_description():
     camera = ParameterValue(LaunchConfiguration("camera"), value_type=int)
     center_tolerance = ParameterValue(
         LaunchConfiguration("center_tolerance_px"), value_type=int
+    )
+    crop_rows = ParameterValue(
+        LaunchConfiguration("crop_rows"), value_type=int
     )
     pick_timeout = ParameterValue(
         LaunchConfiguration("pick_timeout_s"), value_type=float
@@ -119,6 +145,9 @@ def generate_launch_description():
     )
 
     # ---- The eyes: says when a wanted box is in the middle of the picture.
+    #      It measures on the cropped picture only (crop_rows off the top and
+    #      the same off the bottom) and opens three windows: the whole frame,
+    #      the cropped frame it actually decided from, and the masks.
     color_gate = Node(
         package="scara_vision",
         executable="conveyor_color_gate",
@@ -127,6 +156,7 @@ def generate_launch_description():
         parameters=[{
             "camera": camera,
             "center_tolerance_px": center_tolerance,
+            "crop_rows": crop_rows,
         }],
     )
 
@@ -154,6 +184,7 @@ def generate_launch_description():
         serial_port_arg,
         camera_arg,
         center_tolerance_arg,
+        crop_rows_arg,
         pick_timeout_arg,
         real_robot,
         delayed,

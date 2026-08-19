@@ -10,8 +10,9 @@ Three windows open:
 
     camera    the picture, with a box round every colour that was found
     masks     what each colour's thresholds actually select, side by side
-    cropped   the same picture with the bottom cut off, so you can see what is
-              left once the near edge of the belt is out of the way
+    cropped   the same picture with the top and bottom cut off, so you can see
+              what is left once the near edge of the belt and the background
+              above it are out of the way
 
 Drag the sliders until each object is white in ITS OWN mask panel and black in
 the other two. That is easier to judge than watching the boxes flicker, because
@@ -51,6 +52,7 @@ SLIDER_NAMES = ["H min", "S min", "V min", "H max", "S max", "V max"]
 SLIDER_MAXES = [179, 255, 255, 179, 255, 255]
 
 MIN_PIXELS = 2000        # smaller blobs than this are ignored
+CROP_ROWS = 130          # rows cut off the top AND the bottom by default
 SLIDERS = "thresholds"   # name of the slider window
 MASKS = "masks"          # name of the mask window
 CROPPED = "cropped"      # name of the cut-down view
@@ -71,6 +73,25 @@ def make_mask(hsv, threshold):
 
     # Rub out stray specks so one object gives one blob.
     return cv2.morphologyEx(mask, cv2.MORPH_OPEN, np.ones((5, 5), np.uint8))
+
+
+def crop_edges(image, rows):
+    """`rows` taken off the TOP and the same off the BOTTOM of a frame.
+
+    What is left is the middle band: the belt, without the near edge and the
+    table below it or the background above it. conveyor_color_gate.py measures
+    on the result of this and this node draws it, so the cut is defined in
+    exactly one place.
+
+    Because the top is cut too, a point in the returned picture is `rows` lower
+    in the original -- see how the gate offsets its boxes when it draws them on
+    the whole frame. An impossible number is ignored rather than obeyed, so no
+    caller can end up with an empty picture.
+    """
+    height = image.shape[0]
+    if rows <= 0 or 2 * rows >= height:
+        return image
+    return image[rows:height - rows]
 
 
 def mask_gallery(masks):
@@ -105,14 +126,17 @@ class ColorPublisher(Node):
 
         self.declare_parameter("camera", 4)
 
-        # How many rows to cut off the BOTTOM of the picture for the "cropped"
-        # window. This is a view, not a filter: the boxes and /detected_color
-        # still come from the whole frame. It is here so you can see what the
-        # picture would look like with the near edge of the belt out of shot.
-        self.declare_parameter("crop_bottom", 130)
+        # How many rows to cut off the TOP and off the BOTTOM of the picture for
+        # the "cropped" window. In THIS node it is a view, not a filter: the
+        # boxes and /detected_color still come from the whole frame, so you can
+        # see what the picture would look like with the near edge of the belt
+        # and the background out of shot. Tune it here, then pass the same
+        # number to conveyor_color_gate, which really does measure on the
+        # cut-down picture.
+        self.declare_parameter("crop_rows", CROP_ROWS)
 
         self.camera = cv2.VideoCapture(self.get_parameter("camera").value)
-        self.crop_bottom = int(self.get_parameter("crop_bottom").value)
+        self.crop_rows = int(self.get_parameter("crop_rows").value)
         self.warned_about_crop = False
 
         self.publisher = self.create_publisher(String, "detected_color", 10)
@@ -160,23 +184,21 @@ class ColorPublisher(Node):
         print("}")
 
     def crop(self, image):
-        """`crop_bottom` rows taken off the bottom of anything frame-shaped.
+        """`crop_rows` off the top and the bottom, complaining if it cannot.
 
         The camera view, the cropped view and every mask panel all go through
-        here, so the three windows can never disagree about where the cut is.
+        here, so the three windows can never disagree about where the cuts are.
         """
         height = image.shape[0]
 
-        if self.crop_bottom >= height:
-            if not self.warned_about_crop:
-                self.get_logger().warn(
-                    f"crop_bottom is {self.crop_bottom} but the picture is only "
-                    f"{height} rows tall -- showing it uncropped"
-                )
-                self.warned_about_crop = True
-            return image
+        if 2 * self.crop_rows >= height and not self.warned_about_crop:
+            self.get_logger().warn(
+                f"crop_rows is {self.crop_rows} top and bottom, which is the "
+                f"whole {height}-row picture -- showing it uncropped"
+            )
+            self.warned_about_crop = True
 
-        return image[:height - self.crop_bottom]
+        return crop_edges(image, self.crop_rows)
 
     def tick(self):
         ok, frame = self.camera.read()

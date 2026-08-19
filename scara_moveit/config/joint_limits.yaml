@@ -29,6 +29,21 @@ default_acceleration_scaling_factor: 0.1
 # NOTE: default_velocity_scaling_factor above multiplies all of these, so at 0.1
 # the real values are 10x slower again.  Raise the Velocity Scaling slider in the
 # RViz MotionPlanning panel rather than inflating the limits here.
+#
+# ── 2026-08-19: all four joints set to 0.4 / 0.2 by request ──────────────────
+# The derived hardware numbers above are kept as comments, not deleted, because
+# they are what the gearing and the firmware actually allow.  0.4 is close to
+# the real cap for the column (0.41) and the forearm (0.39), and slower than the
+# wrist's (0.87), so those three are fine.
+#
+# The SHOULDER is the one to know about: 0.4 m/s is 0.012 m/s of real travel
+# asked to go 33x faster, i.e. 40000 steps/s against an Uno that sustains about
+# 4000 across all four axes.  Nothing breaks -- the firmware clamps it -- but
+# MoveIt now plans a 132 mm drop as a third of a second when the slide really
+# needs eleven, so it reports the move finished almost immediately.  That is why
+# hardware_pick_executor.py waits out the shoulder's REAL travel time itself
+# (SHOULDER_SPEED / shoulder_catchup) before it works the gripper.  If the arm
+# starts stopping short again, that is the first place to look.
 # ─────────────────────────────────────────────────────────────────────────────
 
 # Specific joint properties can be changed with the keys [max_position, min_position, max_velocity, max_acceleration]
@@ -37,15 +52,17 @@ joint_limits:
   column_joint:
     has_velocity_limits: true
     # max_velocity: 1.5      # simulation
-    max_velocity: 0.41       # real hardware  (19:1, 1000 steps/s cap)
-    has_acceleration_limits: false
-    max_acceleration: 0
+    # max_velocity: 0.41     # real hardware  (19:1, 1000 steps/s cap)
+    max_velocity: 0.4
+    has_acceleration_limits: true
+    max_acceleration: 0.2
   forearm_joint:
     has_velocity_limits: true
     # max_velocity: 1.5      # simulation
-    max_velocity: 0.39       # real hardware  (16:1, 800 steps/s cap)
-    has_acceleration_limits: false
-    max_acceleration: 0
+    # max_velocity: 0.39     # real hardware  (16:1, 800 steps/s cap)
+    max_velocity: 0.4
+    has_acceleration_limits: true
+    max_acceleration: 0.2
   left_finger_joint:
     # Servo, not a stepper: it moves at its own fixed rate and the firmware just
     # waits GRIPPER_SETTLE_MS. This number only shapes MoveIt's timing.
@@ -62,12 +79,14 @@ joint_limits:
   shoulder_joint:
     has_velocity_limits: true
     # max_velocity: 0.5      # simulation
-    max_velocity: 0.012      # real hardware  (8 mm lead, 1200 steps/s cap)
-    has_acceleration_limits: false
-    max_acceleration: 0
+    # max_velocity: 0.012    # real hardware  (8 mm lead, 1200 steps/s cap)
+    max_velocity: 0.4
+    has_acceleration_limits: true
+    max_acceleration: 0.2
   wrist_joint:
     has_velocity_limits: true
     # max_velocity: 1.5      # simulation
-    max_velocity: 0.87       # real hardware  (4.5:1, 500 steps/s cap)
-    has_acceleration_limits: false
-    max_acceleration: 0
+    # max_velocity: 0.87     # real hardware  (4.5:1, 500 steps/s cap)
+    max_velocity: 0.4
+    has_acceleration_limits: true
+    max_acceleration: 0.2

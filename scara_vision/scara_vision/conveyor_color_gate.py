@@ -36,6 +36,27 @@ several seconds.
 
 The HSV ranges come from hardware_color_publisher.py, so tune them there (it has
 sliders) and this node picks the tuning up with no changes.
+
+WHAT IS ACTUALLY LOOKED AT
+Everything is measured on the CROPPED picture -- `crop_rows` taken off the top
+and the same off the bottom, the same cut hardware_color_publisher.py shows you
+in its "cropped" window, and the same number is the parameter here. Outside that
+band sit the near edge of the belt, the table below it and the background above
+it, which is where phantom blobs come from. The whole frame is never measured,
+only drawn.
+
+Three windows open:
+
+    conveyor colour gate     the whole picture, for looking at. Both crop lines
+                             are drawn on it: only the band between them counts.
+    gate: measured on this   the cropped picture -- what the decision was made
+                             from, with every colour boxed
+    gate: masks              what each colour's thresholds select on the cropped
+                             picture, side by side
+
+Every colour in the table is found and boxed, not just the wanted one: seeing
+green boxed while you wait for red is what tells you the camera is fine and the
+red box simply is not there yet. Only the wanted colour stops the belt.
 """
 
 import cv2
@@ -44,7 +65,13 @@ from rclpy.node import Node
 from rclpy.qos import DurabilityPolicy, QoSProfile, ReliabilityPolicy
 from std_msgs.msg import String
 
-from scara_vision.hardware_color_publisher import THRESHOLDS, make_mask
+from scara_vision.hardware_color_publisher import (
+    CROP_ROWS,
+    THRESHOLDS,
+    crop_edges,
+    make_mask,
+    mask_gallery,
+)
 
 # Latched, matching conveyor_state_machine.py: a colour announced before this
 # node started is still waiting for us when we subscribe.
@@ -61,6 +88,10 @@ WORD_FOR = {letter: word for word, letter in LETTER_FOR.items()}
 
 BOX_COLOUR = {"red": (0, 0, 255), "green": (0, 255, 0),
               "blue": (255, 0, 0), "yellow": (0, 255, 255)}
+
+WINDOW_CAMERA = "conveyor colour gate"      # whole frame, drawn on only
+WINDOW_CROPPED = "gate: measured on this"   # the cut-down frame the decision uses
+WINDOW_MASKS = "gate: masks"                # what the thresholds select
 
 # Topics -- the same names scara_conveyor/common.py uses.
 TOPIC_TARGET_COLOR = "/conveyor/target_color"
@@ -80,10 +111,17 @@ class ConveyorColorGate(Node):
         self.declare_parameter("confirm_frames", 3)
         self.declare_parameter("show_window", True)
 
+        # Rows cut off the top, and the same off the bottom, before anything is
+        # measured. Same cut, and the same default, as
+        # hardware_color_publisher.py's "cropped" window -- so tune it by eye
+        # over there, then pass the number you settled on here.
+        self.declare_parameter("crop_rows", CROP_ROWS)
+
         self.tolerance = int(self.get_parameter("center_tolerance_px").value)
         self.min_pixels = int(self.get_parameter("min_pixels").value)
         self.confirm_frames = int(self.get_parameter("confirm_frames").value)
         self.show_window = bool(self.get_parameter("show_window").value)
+        self.crop_rows = int(self.get_parameter("crop_rows").value)
 
         self.camera = cv2.VideoCapture(self.get_parameter("camera").value)
         if not self.camera.isOpened():
@@ -109,7 +147,8 @@ class ConveyorColorGate(Node):
         self.create_timer(0.03, self.tick)
         self.get_logger().info(
             f"Watching for {self.target or 'a colour nobody has named yet'}; "
-            f"centre band is +/-{self.tolerance} pixels."
+            f"centre band is +/-{self.tolerance} pixels, "
+            f"top and bottom {self.crop_rows} rows ignored."
         )
 
     # -- who are we looking for -------------------------------------------
@@ -161,15 +200,20 @@ class ConveyorColorGate(Node):
         if not ok:
             return
 
-        middle = frame.shape[1] // 2
-        blob = self.find_target(frame) if self.target else None
+        # `view` is a numpy slice of `frame`, so drawing on it would draw on
+        # `frame` too. Nothing is ever drawn on it: it is measured, and the
+        # copy made further down is what gets the boxes.
+        view = crop_edges(frame, self.crop_rows)
+        middle = view.shape[1] // 2
+
+        masks, blobs = self.find_all(view)
+        blob = blobs.get(self.target)
 
         if blob is None:
             self.centred_frames = 0
         else:
-            x, y, w, h = blob
-            centre_x = x + w // 2
-            off_by = centre_x - middle
+            x, _, w, _ = blob
+            off_by = (x + w // 2) - middle
 
             if abs(off_by) <= self.tolerance:
                 self.centred_frames += 1
@@ -181,29 +225,33 @@ class ConveyorColorGate(Node):
             if self.centred_frames >= self.confirm_frames and not self.announced:
                 self.announce()
 
-            self.draw_blob(frame, blob, off_by)
-
         if self.show_window:
-            self.draw_overlay(frame, middle)
-            cv2.imshow("conveyor colour gate", frame)
-            if (cv2.waitKey(1) & 0xFF) in (ord("q"), 27):
-                self.done = True
+            self.show(frame, view, masks, blobs, middle)
 
-    def find_target(self, frame):
-        """Bounding box of the biggest blob of the wanted colour, or None."""
-        hsv = cv2.cvtColor(frame, cv2.COLOR_BGR2HSV)
-        mask = make_mask(hsv, THRESHOLDS[self.target])
+    def find_all(self, view):
+        """Every colour's mask, and the biggest blob of each, on the cropped view.
 
-        contours, _ = cv2.findContours(
-            mask, cv2.RETR_EXTERNAL, cv2.CHAIN_APPROX_SIMPLE
-        )
-        if not contours:
-            return None
+        All of them, not just the target: the gate only acts on the wanted
+        colour, but boxing the others is what tells you at a glance that the
+        camera and the thresholds are working and the box is simply not there.
+        """
+        hsv = cv2.cvtColor(view, cv2.COLOR_BGR2HSV)
 
-        biggest = max(contours, key=cv2.contourArea)
-        if cv2.contourArea(biggest) < self.min_pixels:
-            return None
-        return cv2.boundingRect(biggest)
+        masks, blobs = {}, {}
+        for colour, threshold in THRESHOLDS.items():
+            masks[colour] = make_mask(hsv, threshold)
+
+            contours, _ = cv2.findContours(
+                masks[colour], cv2.RETR_EXTERNAL, cv2.CHAIN_APPROX_SIMPLE
+            )
+            if not contours:
+                continue
+
+            biggest = max(contours, key=cv2.contourArea)
+            if cv2.contourArea(biggest) >= self.min_pixels:
+                blobs[colour] = cv2.boundingRect(biggest)
+
+        return masks, blobs
 
     # -- speaking -----------------------------------------------------------
 
@@ -225,21 +273,74 @@ class ConveyorColorGate(Node):
 
     # -- drawing ------------------------------------------------------------
 
-    def draw_blob(self, frame, blob, off_by):
-        x, y, w, h = blob
-        colour = BOX_COLOUR.get(self.target, (255, 255, 255))
-        cv2.rectangle(frame, (x, y), (x + w, y + h), colour, 2)
-        cv2.line(frame, (x + w // 2, y), (x + w // 2, y + h), colour, 1)
-        cv2.putText(frame, f"{off_by:+d} px", (x, y - 8),
-                    cv2.FONT_HERSHEY_SIMPLEX, 0.6, colour, 2)
+    def show(self, frame, view, masks, blobs, middle):
+        """The three windows: the whole picture, what was measured, the masks."""
+        # How far down the whole frame the measured band starts. Taken from the
+        # two pictures rather than from crop_rows, so a cut that was too big to
+        # obey -- and therefore ignored -- cannot shift the boxes.
+        top = (frame.shape[0] - view.shape[0]) // 2
 
-    def draw_overlay(self, frame, middle):
-        height = frame.shape[0]
+        cropped = view.copy()
+        self.draw_blobs(cropped, blobs, middle, 0)
+        self.draw_overlay(cropped, middle)
+
+        # The same boxes on the whole frame, pushed back down by the rows that
+        # were cut off the top.
+        self.draw_blobs(frame, blobs, middle, top)
+        self.draw_overlay(frame, middle)
+        self.draw_crop_band(frame, top)
+
+        cv2.imshow(WINDOW_CROPPED, cropped)
+        cv2.imshow(WINDOW_CAMERA, frame)
+
+        gallery = mask_gallery(masks)
+        if gallery is not None:
+            cv2.imshow(WINDOW_MASKS, gallery)
+
+        if (cv2.waitKey(1) & 0xFF) in (ord("q"), 27):
+            self.done = True
+
+    def draw_blobs(self, image, blobs, middle, y_offset):
+        """Box every colour found, `y_offset` rows further down the picture.
+
+        Cropping takes rows off the top, so a blob measured at y is at
+        y + crop_rows in the whole frame; the cropped window passes 0.
+        """
+        for colour, (x, y, w, h) in blobs.items():
+            y += y_offset
+            wanted = colour == self.target
+            shade = BOX_COLOUR.get(colour, (255, 255, 255))
+            weight = 2 if wanted else 1
+
+            cv2.rectangle(image, (x, y), (x + w, y + h), shade, weight)
+            if wanted:
+                cv2.line(image, (x + w // 2, y), (x + w // 2, y + h), shade, 1)
+                label = f"{colour} {(x + w // 2) - middle:+d} px"
+            else:
+                label = colour
+
+            cv2.putText(image, label, (x, y - 8),
+                        cv2.FONT_HERSHEY_SIMPLEX, 0.6, shade, weight)
+
+    def draw_crop_band(self, frame, top):
+        """The two lines the measured band lives between."""
+        if top <= 0:
+            return
+
+        width, bottom = frame.shape[1], frame.shape[0] - top
+        for y in (top, bottom):
+            cv2.line(frame, (0, y), (width, y), (0, 165, 255), 2)
+
+        cv2.putText(frame, "measured between these lines", (10, top - 10),
+                    cv2.FONT_HERSHEY_SIMPLEX, 0.6, (0, 165, 255), 2)
+
+    def draw_overlay(self, image, middle):
+        height = image.shape[0]
 
         # The centre line, and the band a box has to be inside to count.
-        cv2.line(frame, (middle, 0), (middle, height), (255, 255, 255), 1)
+        cv2.line(image, (middle, 0), (middle, height), (255, 255, 255), 1)
         for edge in (middle - self.tolerance, middle + self.tolerance):
-            cv2.line(frame, (edge, 0), (edge, height), (120, 120, 120), 1)
+            cv2.line(image, (edge, 0), (edge, height), (120, 120, 120), 1)
 
         if self.target is None:
             state = "waiting to be told a colour"
@@ -250,7 +351,7 @@ class ConveyorColorGate(Node):
         else:
             state = f"{self.target}: watching"
 
-        cv2.putText(frame, state, (10, 26), cv2.FONT_HERSHEY_SIMPLEX,
+        cv2.putText(image, state, (10, 26), cv2.FONT_HERSHEY_SIMPLEX,
                     0.7, (255, 255, 255), 2)
 
 
