@@ -67,7 +67,7 @@ ROS 2 Humble · MoveIt 2 · ros2_control · Gazebo Fortress (`ros_gz`) · pymove
 ```bash
 # build (Ubuntu 22.04, ROS 2 Humble)
 mkdir -p ~/scara_ws/src && cd ~/scara_ws/src
-git clone https://github.com/Curious-Utkarsh/ROS2_SCARA_WS.git .
+git clone https://github.com/Curious-Utkarsh/scara-pick-and-place.git .
 cd ~/scara_ws && rosdep install --from-paths src --ignore-src -r -y
 colcon build --symlink-install && source install/setup.bash
 
@@ -90,10 +90,10 @@ If RViz or the MoveIt Setup Assistant fails to start after a recent Humble updat
 
 ## Related
 
-- [MechaBot](https://github.com/MechaMind-Labs/AMR-Mastery) and [Mobi](https://github.com/Curious-Utkarsh/Indoor_Service_AMR) — my mobile robots with the same hardware-interface pattern
-- [Franka colour sorting](https://github.com/MechaMind-Labs/Franka_Panda_Color_Sorting_Robot) — the simulation-only predecessor of this vision pick pipeline
-- [Dual-Panda tic-tac-toe](https://github.com/MechaMind-Labs/ROS2_Dual_Franka_Panda_TicTacToe_AI_Vision) — two simulated arms taking turns with MoveIt 2 and OpenCV
-- [3-DOF arm digital twin](https://github.com/MechaMind-Labs/ROS2_3DOF_Robotic_Arm_Digital_Twin) — an earlier hardware-to-RViz/Gazebo twin
+- [MechaBot](https://github.com/MechaMind-Labs/AMR-Mastery) and [Mobi](https://github.com/Curious-Utkarsh/mobi-service-robot) — my mobile robots with the same hardware-interface pattern
+- [Franka colour sorting](https://github.com/MechaMind-Labs/franka-color-sorting-robot) — the simulation-only predecessor of this vision pick pipeline
+- [Dual-Panda tic-tac-toe](https://github.com/MechaMind-Labs/dual-franka-tic-tac-toe) — two simulated arms taking turns with MoveIt 2 and OpenCV
+- [3-DOF arm digital twin](https://github.com/MechaMind-Labs/3dof-arm-digital-twin) — an earlier hardware-to-RViz/Gazebo twin
 
 ## Credits
 
