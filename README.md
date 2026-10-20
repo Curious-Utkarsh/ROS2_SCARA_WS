@@ -17,7 +17,8 @@ I built the robot software end to end — URDF from CAD, Gazebo world, controlle
 </p>
 
 - [Physical cell set up to mirror the simulation (LinkedIn, Part 23)](https://www.linkedin.com/posts/kumar-utkarsh-124aab227_robotics-ros2-digitaltwin-activity-7495491810367205376-1MMO)
-- Full 25-part build log: [YouTube Shorts](https://www.youtube.com/@MechaMindLabs/shorts) · [Instagram, Part 13](https://www.instagram.com/reel/DbRDdmOC3sn/) · [Instagram, showcase reel](https://www.instagram.com/reel/DcQOwcLMkKD/)
+- ["This robot picks any colour you ask it to"](https://www.youtube.com/shorts/ERg1EL5rM_c)
+- Full 25-part build log, from [Part 1: the plan](https://www.youtube.com/shorts/xwtNh44syTQ) to [Part 25: final demo](https://www.youtube.com/shorts/4r_umrhB5zc): [YouTube Shorts](https://www.youtube.com/@MechaMindLabs/shorts) · [Instagram, Part 13](https://www.instagram.com/reel/DbRDdmOC3sn/) · [Instagram, showcase reel](https://www.instagram.com/reel/DcQOwcLMkKD/)
 
 ## Key features
 
