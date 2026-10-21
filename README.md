@@ -19,7 +19,7 @@ I built the robot software end to end — URDF from CAD, Gazebo world, controlle
 - [Physical cell set up to mirror the simulation (LinkedIn, Part 23)](https://www.linkedin.com/posts/kumar-utkarsh-124aab227_robotics-ros2-digitaltwin-activity-7495491810367205376-1MMO)
 - ["This robot picks any colour you ask it to"](https://www.youtube.com/shorts/ERg1EL5rM_c)
 - LinkedIn build series: [Part 1: starting the project](https://www.linkedin.com/feed/update/urn:li:activity:7475813895127916544/) · [colour picking demo](https://www.linkedin.com/feed/update/urn:li:activity:7487813510979031041/) · [Part 25: final demo](https://www.linkedin.com/feed/update/urn:li:activity:7496081661785411584/)
-- Full 25-part build log, from [Part 1: the plan](https://www.youtube.com/shorts/xwtNh44syTQ) to [Part 25: final demo](https://www.youtube.com/shorts/4r_umrhB5zc): [YouTube Shorts](https://www.youtube.com/@MechaMindLabs/shorts) · [Instagram, Part 13](https://www.instagram.com/reel/DbRDdmOC3sn/) · [Instagram, showcase reel](https://www.instagram.com/reel/DcQOwcLMkKD/)
+- Full 25-part build log, from [Part 1: the plan](https://www.youtube.com/shorts/xwtNh44syTQ) to [Part 25: final demo](https://www.youtube.com/shorts/4r_umrhB5zc): [YouTube playlist: SCARA Robot Build (Parts 1–25)](https://www.youtube.com/playlist?list=PLFVs4BXGHW84) · [Instagram, Part 13](https://www.instagram.com/reel/DbRDdmOC3sn/) · [Instagram, showcase reel](https://www.instagram.com/reel/DcQOwcLMkKD/)
 
 ## Key features
 
